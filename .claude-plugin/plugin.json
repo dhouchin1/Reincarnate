@@ -1,0 +1,22 @@
+{
+  "name": "reincarnate",
+  "version": "0.1.0",
+  "description": "Comprehend any repo, keep the ideas, rebuild them as yours — a clean-room capability catalog and app composer.",
+  "author": {
+    "name": "Dan Houchin",
+    "url": "https://github.com/dhouchin1"
+  },
+  "homepage": "https://github.com/dhouchin1/Reincarnate",
+  "repository": "https://github.com/dhouchin1/Reincarnate",
+  "license": "MIT",
+  "keywords": [
+    "clean-room",
+    "repo-comprehension",
+    "capabilities",
+    "catalog",
+    "composer",
+    "blueprint",
+    "kit",
+    "reincarnate"
+  ]
+}
