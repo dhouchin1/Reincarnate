@@ -299,6 +299,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--only-missing", action="store_true")
     p.add_argument("--batch", type=int, default=25)
     p.add_argument("--model", default="claude-haiku-5-5")
+    p.add_argument("--engine", choices=["haiku", "jev", "jev-sim"], default="haiku",
+                   help="haiku (claude -p), jev (TypeSafe, needs TYPESAFE_API_KEY), "
+                        "jev-sim (offline lexical stand-in)")
+    p.add_argument("--review-threshold", type=float, default=0.6,
+                   help="jev engines: flag capabilities below this confidence for Tier 3 review")
+
+    p = add("review", make_delegate("review"), "Tier 3: Sonnet review of low-confidence enrichment")
+    p.add_argument("--limit", type=int, default=50)
+    p.add_argument("--model", default="claude-sonnet-5-5")
+    p.add_argument("--batch", type=int, default=10)
+
+    p = add("jev", make_delegate("jev"), "TypeSafe Jev backend status / models")
+    p.add_argument("action", choices=["status", "models"])
 
     p = add("import-interfaces", make_delegate("importers.interfaces"),
             "apply second-brain capability-interfaces.json")
@@ -316,6 +329,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--target", help="for pick: <slug> or new:<name>")
     p.add_argument("--include-commodity", action="store_true")
     p.add_argument("--no-verify", action="store_true")
+    p.add_argument("--shortlist", choices=["lexical", "jev", "jev-sim"], default="lexical",
+                   help="re-rank the lexical pool with Jev before composing")
 
     p = add("overlay", make_delegate("overlay"), "score capabilities against your projects")
     p.add_argument("repo", nargs="?", help="owner/repo")
@@ -337,6 +352,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fit", help="project slug")
     p.add_argument("--gaps", action="store_true")
     p.add_argument("--novelty", choices=["commodity", "pattern", "distinctive", "unrated"])
+    p.add_argument("--needs-review", action="store_true",
+                   help="only capabilities flagged for Tier 3 review")
 
     p = add("vote", cmd_vote, "vote on a capability")
     p.add_argument("capability_id", type=int)

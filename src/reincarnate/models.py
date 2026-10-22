@@ -83,6 +83,8 @@ class Capability(_Base):
     provides: list[str] = field(default_factory=list)
     requires: list[str] = field(default_factory=list)
     novelty: str = ""
+    confidence: float | None = None
+    needs_review: bool = False
 
 
 @dataclass

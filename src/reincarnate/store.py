@@ -50,6 +50,8 @@ _CAP_COLUMNS = (
     ("provides_json", "TEXT DEFAULT '[]'"),
     ("requires_json", "TEXT DEFAULT '[]'"),
     ("novelty", "TEXT DEFAULT ''"),
+    ("confidence", "REAL"),
+    ("needs_review", "INTEGER DEFAULT 0"),
 )
 NOVELTY = ("commodity", "pattern", "distinctive")
 
@@ -311,11 +313,15 @@ class Store:
             security_notes=r["security_notes"] or "",
             provides=_l(r["provides_json"], []), requires=_l(r["requires_json"], []),
             novelty=r["novelty"] or "",
+            confidence=r["confidence"], needs_review=bool(r["needs_review"]),
             donor=f"{r['_owner']}/{r['_repo']}", license=r["_license"] or "")
 
     def list_capabilities(self, *, dossier_id: int | None = None,
-                          current_only=True) -> list[Capability]:
+                          current_only=True, needs_review: bool | None = None) -> list[Capability]:
         where, args = [], []
+        if needs_review is not None:
+            where.append("COALESCE(c.needs_review, 0)=?")
+            args.append(1 if needs_review else 0)
         if dossier_id is not None:
             where.append("c.dossier_id=?")
             args.append(dossier_id)
@@ -330,8 +336,9 @@ class Store:
         return self._cap(r) if r else None
 
     def set_capability_fields(self, capability_id, *, provides=None, requires=None,
-                              novelty=None) -> None:
-        """Update interfaces / novelty; tokens are normalized and canonicalized. None = keep."""
+                              novelty=None, confidence=None, needs_review=None) -> None:
+        """Update interfaces / novelty / confidence / review flag; tokens are normalized and
+        canonicalized. None = keep (confidence < 0 clears it to NULL)."""
         sets, args = [], []
         vocab = self.get_vocabulary() if (provides is not None or requires is not None) else None
         if provides is not None:
@@ -343,6 +350,12 @@ class Store:
         if novelty is not None:
             sets.append("novelty=?")
             args.append(_novelty(novelty))
+        if confidence is not None:  # a negative value clears it back to NULL (unrated)
+            sets.append("confidence=?")
+            args.append(float(confidence) if float(confidence) >= 0 else None)
+        if needs_review is not None:
+            sets.append("needs_review=?")
+            args.append(1 if needs_review else 0)
         if not sets:
             return
         with self.conn:

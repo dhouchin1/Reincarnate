@@ -122,3 +122,13 @@ def test_novelty_filter_and_fields(env):
     assert d["novelty"] == "distinctive" and d["provides"] == ["data:service-status"]
     assert d["requires"] == []
     assert "novelty" in catalog._table([e]).splitlines()[0]
+
+
+def test_catalog_needs_review_filter(store):
+    from conftest import make_dossier
+    store.upsert_dossier("o", "r", "u", "s", make_dossier(("a", "x"), ("b", "y")))
+    a, b = store.list_capabilities()
+    store.set_capability_fields(b.id, needs_review=True)
+    from reincarnate.catalog import build_catalog
+    assert [e.name for e in build_catalog(store, needs_review=True)] == ["b"]
+    assert len(build_catalog(store)) == 2

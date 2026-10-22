@@ -67,8 +67,24 @@ portability and novelty, and flagging license risk. Its probabilities are the co
 decides what escalates to Tier 3. It also fits the compose shortlist, where the October 5
 prototype showed the speedup comes from shrinking the Opus prompt.
 
-Not verified: the Jev client has never run against the live API, because no TypeSafe key is
-configured. Its speed and price claims come from TypeSafe's early-access material.
+Not verified: the Jev client has only run against mocked HTTP, because no TypeSafe key is
+configured. Its wire format follows docs.typesafe.ai as of 2026-10-22.
+
+## v0.2 live measurements (2026-10-22, full 351-capability catalog)
+
+| Step | Model | Result | Cost | Time |
+|---|---|---|---|---|
+| Excerpt comprehension, itsdangerous | Haiku 5.5 | 8 capabilities, novelty and interfaces on all | $0.0105 | about 60 s |
+| Tier 2 enrich, all capabilities, 15 batches of 25 | Haiku 5.5 | 351 of 351 rated, 0 failed batches | $0.080 | 369 s |
+| Design, 3 options, 120-part lexical pool, plus link verification | Opus 5.5 + Haiku 5.5 | 12 requirements, 3 distinct options | $0.347 | 70 s |
+| Same design, 40-part shortlist | Opus 5.5 + Haiku 5.5 | similar reuse and fit scores | $0.197 | 66 s |
+
+Novelty split after Tier 2: 123 commodity, 161 pattern, 67 distinctive. About a third of the
+catalog is boilerplate a coding agent writes unaided, and designs now exclude it by default.
+
+The 40-part run used the Jev stand-in to pick the shortlist, so it measures what a smaller
+pool saves (about 43 percent of the design cost), not how well real Jev chooses. The real
+Jev comparison needs a `TYPESAFE_API_KEY`.
 
 ## Next measurements
 

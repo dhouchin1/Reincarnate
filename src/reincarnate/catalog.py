@@ -42,7 +42,7 @@ def _entry_score(portability: str, best_fit: float, vote: int) -> float:
 
 
 def build_catalog(store, *, search=None, portability=None, donor=None, fit=None,
-                  gaps=False, novelty=None) -> list[CatalogEntry]:
+                  gaps=False, novelty=None, needs_review=False) -> list[CatalogEntry]:
     """Scored catalog entries. `gaps` is handled by run_cli; it does not alter the entries."""
     caps = (store.search_capabilities(search) if search
             else store.list_capabilities(current_only=True))
@@ -56,6 +56,8 @@ def build_catalog(store, *, search=None, portability=None, donor=None, fit=None,
         if portability and c.portability != portability:
             continue
         if donor and c.donor != donor:
+            continue
+        if needs_review and not c.needs_review:
             continue
         if novelty and c.novelty != ("" if novelty == "unrated" else novelty):
             continue
@@ -152,6 +154,7 @@ def run_cli(store, args) -> dict:
         store, search=getattr(args, "search", None),
         portability=getattr(args, "portability", None), donor=getattr(args, "donor", None),
         fit=getattr(args, "fit", None),
-        novelty=getattr(args, "novelty", None))
+        novelty=getattr(args, "novelty", None),
+        needs_review=bool(getattr(args, "needs_review", False)))
     return {"summary": summary(entries), "items": [e.to_dict() for e in entries],
             "text": _table(entries)}

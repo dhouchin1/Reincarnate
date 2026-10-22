@@ -10,7 +10,7 @@
       "name": "reincarnate",
       "source": "./",
       "description": "Comprehend any repo, keep the ideas, rebuild them as yours — a clean-room capability catalog and app composer.",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }

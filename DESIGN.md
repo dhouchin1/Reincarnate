@@ -347,3 +347,20 @@ reincarnate design "<idea>" [--options 2-4] [--engine claude-p|session|offline] 
 reincarnate design list | show <slug>
 reincarnate design pick <slug> <slot|option-slug> [--target <slug>|new:<name>]
 ```
+
+## Jev, confidence routing, Tier 3 (added 2026-10-22)
+
+- `jev.py`: TypeSafe System One client (`POST https://api.typesafe.ai/v1/systemone`, key in
+  `TYPESAFE_API_KEY`), choice/score/noul questions, chunked at 13 per request, 429/529
+  retried with backoff; `SimJevClient` ("jev-sim") is a lexical stand-in for offline runs and
+  tests and is not evidence of Jev's quality or speed.
+- `reincarnate enrich --engine haiku|jev|jev-sim [--review-threshold 0.6]`: the Jev engine asks
+  one score question for novelty and one choice question per non-canonical interface token
+  (criteria: the canonical tokens of the same kind, plus "keep"). `confidence` is the minimum
+  answer confidence; below the threshold the capability gets `needs_review = 1`.
+- `reincarnate review [--limit N] [--model claude-sonnet-5-5]`: Tier 3, re-rates only flagged
+  capabilities from catalog and dossier text (never donor source), then clears the flag.
+- `reincarnate design ... --shortlist lexical|jev|jev-sim`: Jev keeps the capabilities it
+  judges useful for the idea (noul P >= 0.5, at most 40) before the Opus call.
+- `reincarnate jev status|models`, `reincarnate catalog --needs-review`.
+

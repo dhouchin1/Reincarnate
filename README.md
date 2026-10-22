@@ -39,12 +39,31 @@ reincarnate init
 | `/reincarnate:setup` | Install the engine, create your profile, register the current project |
 | `/reincarnate:comprehend <url or owner/repo>` | Read a repo clean-room in this session and add its capabilities to your catalog |
 | `/reincarnate:catalog [filters]` | Browse and search the catalog; vote capabilities up or down |
+| `/reincarnate:design <idea>` | Design 2-4 distinct apps (Lean, Complete, Alternative, Bold) from the catalog, with wiring between parts, reuse and fit scores, then pick one to build |
 | `/reincarnate:compose <idea>` | Pick and connect capabilities into an app proposal, with explicit gaps and a license check |
 | `/reincarnate:kit <composition> <target>` | Export a buildable `.reincarnate/` kit and optionally build step 1 right away |
 | `/reincarnate:salvage <capability-id> --into <project>` | Turn one capability into a clean-room build spec for one of your projects |
 | `/reincarnate:portfolio` | Comprehend your own repos and export a capability résumé |
 
 The `clean-room` skill holds the building rules the kit, salvage, and compose flows rely on.
+
+## How the catalog stays cheap
+
+Comprehension is tiered so accuracy is paid for only where a capability is used
+(measurements in [docs/COST.md](docs/COST.md)):
+
+1. **No model:** clone, rank files, detect the license, skip a commit already catalogued.
+2. **Haiku 5.5, one isolated call:** extract capabilities from a ranked excerpt (about $0.01
+   per small repo).
+3. **Tier 2:** `reincarnate enrich` rates each capability's novelty (commodity, pattern,
+   distinctive) and maps its interface tokens onto a shared vocabulary, with Haiku in
+   batches or with [Jev](https://docs.typesafe.ai) (`--engine jev`), whose calibrated
+   confidence flags uncertain capabilities.
+4. **Tier 3:** `reincarnate review` sends only flagged capabilities to Sonnet.
+5. **Design:** Opus composes over a shortlist (`--shortlist jev` re-ranks it with Jev).
+
+Commodity capabilities, which a coding agent writes from a one-line prompt, stay out of
+designs by default. The catalog is for the parts an agent would not invent on its own.
 
 ## The air gap
 

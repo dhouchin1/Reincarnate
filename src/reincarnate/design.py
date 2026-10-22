@@ -1,0 +1,726 @@
+"""Multi-option app design: an idea plus the catalog -> 2-4 named options (Lean, Complete,
+Alternative, Bold), each wired, flagged and scored. `pick` turns one option into a regular
+Composition so `reincarnate kit` builds it unchanged.
+
+Port of Forge Studio's compose.py onto this store. Pipeline:
+  1. pool: current capabilities (commodity excluded by default), ranked lexically, optionally
+     re-ranked by the Jev shortlist hook;
+  2. ONE design call (claude-p), a session-authored file (session), or a deterministic pick
+     (offline) produces requirements, options and coverage labels;
+  3. code validates: ids resolve, >=2 real capabilities, no near-duplicate options,
+     coverage relabelling, license/security flags;
+  4. code checks interface wiring (interfaces.check_wiring) against the whole catalog;
+  5. ONE isolated Haiku call judges every token-proposed link; rejected links become unmet.
+Designs never carry donor file contents (not even file paths).
+"""
+
+from __future__ import annotations
+
+import importlib
+import math
+import re
+from collections import Counter
+from pathlib import Path
+from typing import Any
+
+from . import compose
+from .interfaces import check_wiring
+from .models import Composition, Design
+from .store import now
+
+SLOTS: list[tuple[str, str, str]] = [
+    ("lean", "Lean", "the fewest capabilities that still make a usable first version"),
+    ("complete", "Complete", "covers the most requirements straight from the catalog"),
+    ("alternative", "Alternative",
+     "built on a different core capability or donor than the others"),
+    ("bold", "Bold", "a more ambitious product angle on the same goal"),
+]
+COVERAGE_KINDS = ("catalog", "glue", "net-new")
+MAX_CAPS = 8
+MAX_JACCARD = 0.7
+POOL_CAP = 120
+SHORTLIST_KEEP = 40
+DESIGN_MODEL = "claude-opus-5-5"
+VERIFY_MODEL = "claude-haiku-5-5"
+OFFLINE_LEAN = 3
+OFFLINE_COMPLETE = 8
+# Licenses that need a human look before reusing even the *idea* commercially.
+LICENSE_RISK = ("gpl", "agpl", "lgpl", "mpl", "sspl", "eupl", "proprietary", "non-comm",
+                "noncomm", "bsl", "business source", "elastic", "commons clause", "cc-by-nc")
+_UNLICENSED = {"", "unknown", "noassertion"}
+_WIRING_KINDS = ("wired", "unmet", "settings", "external", "owned", "platform", "unknown")
+
+SYSTEM = (
+    "You are Reincarnate's designer, a pragmatic product-minded principal engineer. A developer "
+    "describes an application; you design it from a catalog of reusable capabilities, each "
+    "comprehended from an open-source donor repository and to be reimplemented clean-room (so a "
+    "donor's language never constrains the target stack). You work from catalog rows only and "
+    "never from donor source. You favour elegant combinations whose parts genuinely plug "
+    "together over grab-bags. Commodity parts are glue the builder writes, not catalog parts. "
+    "Respond with ONLY one JSON object."
+)
+
+VERIFY_SYSTEM = (
+    "You check whether proposed connections between software components are real. Be strict: "
+    "a link is valid only if the provider genuinely supplies what the consumer needs in this "
+    "application. Respond with ONLY one JSON object."
+)
+
+_WORD = re.compile(r"[a-z][a-z0-9]+")
+_STOP = set("a an and the of to for with in on by is are be or my our your that this it as at "
+            "from into app application build want need using use can will should which who what "
+            "when".split())
+
+
+def _words(text: str) -> list[str]:
+    return [w for w in _WORD.findall((text or "").lower()) if w not in _STOP and len(w) > 2]
+
+
+def _cid(ref: Any) -> str:
+    """`c17`, `17`, 17 -> "c17"; anything else -> "" ."""
+    if isinstance(ref, bool):
+        return ""
+    if isinstance(ref, int):
+        return f"c{ref}"
+    s = str(ref or "").strip().lower()
+    if s.isdigit():
+        return f"c{int(s)}"
+    if re.fullmatch(r"c\d+", s):
+        return f"c{int(s[1:])}"
+    return ""
+
+
+def _row(c) -> dict[str, Any]:
+    """A Capability as a catalog row (no files, no dependencies)."""
+    return {"cid": f"c{c.id}", "capability_id": c.id, "name": c.name, "donor": c.donor,
+            "license": c.license or "", "portability": c.portability or "medium",
+            "novelty": c.novelty or "", "what": c.what or "",
+            "provides": list(c.provides or []), "requires": list(c.requires or []),
+            "security_notes": c.security_notes or ""}
+
+
+# -- pool -----------------------------------------------------------------------------------
+def rank_catalog(caps: list, idea: str, cap: int = POOL_CAP) -> list:
+    """Lexical TF-IDF over name + what + provides, plus a portability bonus; best `cap`.
+
+    Unlike Forge Studio this always sorts (ties by id), so the offline engine's "top N" is
+    the most relevant N even when the whole catalog fits."""
+    q = Counter(_words(idea))
+    df: Counter = Counter()
+    docs = []
+    for c in caps:
+        ws = set(_words(f"{c.name} {c.what} {' '.join(c.provides or [])}"))
+        docs.append(ws)
+        df.update(ws)
+    n = max(1, len(caps))
+    port = {"high": 0.3, "medium": 0.15, "low": 0.0}
+    scored = []
+    for c, ws in zip(caps, docs, strict=True):
+        s = sum(q[w] * math.log(1 + n / df[w]) for w in ws if w in q)
+        scored.append((s + port.get(c.portability, 0), c.id, c))
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    return [c for _, _, c in scored[:cap]]
+
+
+def _client_name(client) -> str:
+    return str(getattr(client, "name", "") or type(client).__name__)
+
+
+def _pool(store, idea, *, include_commodity=False, cap=POOL_CAP, shortlist=None):
+    """-> (capabilities, ranking used, notes)."""
+    caps = [c for c in store.list_capabilities(current_only=True)
+            if include_commodity or c.novelty != "commodity"]
+    caps = rank_catalog(caps, idea, cap)
+    notes: list[str] = []
+    used = "lexical"
+    if shortlist is None or not caps:
+        return caps, used, notes
+    try:
+        jev = importlib.import_module("reincarnate.jev")
+    except ImportError:
+        notes.append("shortlist requested but reincarnate.jev is unavailable; lexical pool kept")
+        return caps, used, notes
+    fn = getattr(jev, "shortlist", None)
+    if not callable(fn):
+        notes.append("reincarnate.jev has no shortlist(); lexical pool kept")
+        return caps, used, notes
+    try:
+        got = fn(idea, caps, client=shortlist, keep=SHORTLIST_KEEP)
+        known = {c.id for c in caps}
+        out, seen = [], set()
+        for c in got or []:
+            cid = getattr(c, "id", None)
+            if cid in known and cid not in seen:
+                seen.add(cid)
+                out.append(c)
+        if not out:
+            raise ValueError("shortlist returned no catalog capabilities")
+    except Exception as e:  # noqa: BLE001 - a failed re-rank must never block a design
+        notes.append(f"shortlist failed ({type(e).__name__}: {e}); lexical pool kept")
+        return caps, used, notes
+    return out, _client_name(shortlist), notes
+
+
+def pool(store, idea, *, include_commodity=False, cap=POOL_CAP, shortlist=None) -> list:
+    """Current capabilities to design from, most relevant first."""
+    return _pool(store, idea, include_commodity=include_commodity, cap=cap,
+                 shortlist=shortlist)[0]
+
+
+# -- prompts --------------------------------------------------------------------------------
+def catalog_block(caps: list[dict[str, Any]]) -> str:
+    lines = []
+    for c in caps:
+        line = (f"{c['cid']} | {c['donor']} | {c['name']} | {c['portability']} | "
+                f"{c['license'] or 'unknown'} | {c['novelty'] or 'unrated'} | {c['what']}")
+        if c["provides"]:
+            line += f" | gives: {', '.join(c['provides'])}"
+        if c["requires"]:
+            line += f" | needs: {', '.join(c['requires'])}"
+        lines.append(line)
+    return (
+        "CAPABILITY CATALOG (id | donor | capability | portability | license | novelty | what | "
+        "gives/needs interface tokens). A capability's 'needs' token is satisfied when another "
+        "capability in the SAME option 'gives' that exact token; ext: needs come from the "
+        "environment.\n" + "\n".join(lines)
+    )
+
+
+def compose_prompt(idea: str, n_options: int) -> str:
+    slots = SLOTS[:n_options]
+    slot_text = "\n".join(f'  - "{s}" ({label}): {desc}' for s, label, desc in slots)
+    return (
+        f"PROJECT GOAL (from the developer):\n{idea.strip()}\n\n"
+        "Step 1: break the goal into 6-12 concrete, testable requirements (ids r1, r2, ...).\n"
+        f"Step 2: propose exactly {len(slots)} options, one per slot:\n{slot_text}\n"
+        f"Each option uses 2-{MAX_CAPS} catalog capabilities referenced ONLY by id, chosen for "
+        "how elegantly they combine; prefer combinations whose needs are satisfied inside the "
+        "option. Options must differ materially in which capabilities they use. Give each a "
+        "target stack.\n"
+        "Step 3: for EACH option label EVERY requirement: \"catalog\" (mainly delivered by one "
+        "of THAT option's capabilities; give its id), \"glue\" (integration code between them), "
+        "or \"net-new\" (nothing in the option serves it).\n"
+        "Step 4: for each option list the glue components to build and the net-new work, "
+        "briefly.\n\n"
+        "Return JSON with EXACTLY these keys:\n"
+        '{"title": "short name for the project", "requirements": [{"id": "r1", "text": "..."}], '
+        '"options": [{"slot": "<slot>", "name": "product-style name", "pitch": "one sentence: '
+        'who uses it and why", "rationale": "why THESE parts fit together", "stack": "e.g. '
+        'TypeScript + Next.js + SQLite", "capabilities": [{"id": "c17", "role": "what it does '
+        'in THIS option"}], "coverage": [{"req": "r1", "kind": "catalog|glue|net-new", "cap": '
+        '"c17 or empty"}], "glue": ["..."], "new_work": ["..."]}]}\n'
+        "Never invent capability ids."
+    )
+
+
+# -- validation -----------------------------------------------------------------------------
+def _norm_kind(k: Any) -> str:
+    s = str(k or "").strip().lower().replace("_", "-").replace(" ", "-")
+    return s if s in COVERAGE_KINDS else ""
+
+
+def _license_flags(caps: list[dict[str, Any]], profile) -> list[str]:
+    blocked, review = set(), set()
+    for c in caps:
+        lic = (c["license"] or "").strip() or "unknown"
+        label = f"{c['donor']} ({lic})"
+        level = compose.license_level(c["license"], profile)
+        low = lic.lower()
+        if level == "deny":
+            blocked.add(label)
+        elif level == "warn" or low in _UNLICENSED or any(t in low for t in LICENSE_RISK):
+            review.add(label)
+    flags = []
+    if blocked:
+        flags.append("License blocked: " + ", ".join(sorted(blocked)))
+    if review:
+        flags.append("License review: " + ", ".join(sorted(review)))
+    return flags
+
+
+def build_options(obj: dict[str, Any], by_cid: dict[str, dict[str, Any]], n_options: int,
+                  dropped: list[str], profile) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    obj = obj if isinstance(obj, dict) else {}
+    reqs: list[dict[str, str]] = []
+    for i, r in enumerate(obj.get("requirements") or [], 1):
+        text = str((r.get("text") if isinstance(r, dict) else r) or "").strip()
+        rid = str((r.get("id") if isinstance(r, dict) else "") or "").strip() or f"r{i}"
+        if text and rid not in {x["id"] for x in reqs}:
+            reqs.append({"id": rid, "text": text})
+    req_ids = {r["id"] for r in reqs}
+    by_name = {c["name"].lower(): cid for cid, c in by_cid.items()}
+    slot_names = [s for s, _, _ in SLOTS]
+    out: list[dict[str, Any]] = []
+    used_slots: set[str] = set()
+    for raw in obj.get("options") or []:
+        if not isinstance(raw, dict) or not str(raw.get("name") or "").strip():
+            continue
+        name = str(raw["name"]).strip()
+        caps: list[dict[str, Any]] = []
+        for c in raw.get("capabilities") or []:
+            ref = c.get("id", c.get("capability_id")) if isinstance(c, dict) else c
+            cid = _cid(ref)
+            if cid not in by_cid:
+                cid = by_name.get(str(ref or "").strip().lower(), "")
+            if not cid:
+                dropped.append(f"{name}: unknown or excluded capability {ref} dropped")
+                continue
+            if any(x["id"] == cid for x in caps):
+                continue
+            cat = by_cid[cid]
+            caps.append({
+                "id": cid, "capability_id": cat["capability_id"], "name": cat["name"],
+                "donor": cat["donor"], "license": cat["license"],
+                "portability": cat["portability"], "novelty": cat["novelty"],
+                "what": cat["what"],
+                "role": str(c.get("role") or "").strip() if isinstance(c, dict) else "",
+                "provides": cat["provides"], "requires": cat["requires"],
+            })
+            if len(caps) >= MAX_CAPS:
+                break
+        if len(caps) < 2:
+            dropped.append(f"{name}: fewer than 2 real catalog capabilities")
+            continue
+        ids = {c["id"] for c in caps}
+        clash = next((o for o in out if len(ids & {c["id"] for c in o["capabilities"]})
+                      / len(ids | {c["id"] for c in o["capabilities"]}) > MAX_JACCARD), None)
+        if clash:
+            dropped.append(f"{name}: near-duplicate of {clash['name']}")
+            continue
+        slot = str(raw.get("slot") or "").strip().lower()
+        if slot not in slot_names or slot in used_slots:
+            slot = next((s for s in slot_names if s not in used_slots), "option")
+        used_slots.add(slot)
+        labelled: dict[str, dict[str, str]] = {}
+        relabelled = 0
+        for row in raw.get("coverage") or []:
+            if not isinstance(row, dict):
+                continue
+            rid, kind = str(row.get("req") or ""), _norm_kind(row.get("kind"))
+            if rid not in req_ids or not kind or rid in labelled:
+                continue
+            cap = _cid(row.get("cap")) or str(row.get("cap") or "")
+            if kind == "catalog" and cap not in ids:
+                kind, cap, relabelled = "glue", "", relabelled + 1
+            labelled[rid] = {"req": rid, "kind": kind, "cap": cap if kind == "catalog" else ""}
+        coverage = [labelled.get(r["id"]) or {"req": r["id"], "kind": "net-new", "cap": ""}
+                    for r in reqs]
+        flags = _license_flags(caps, profile)
+        sec = [c["name"] for c in caps if (by_cid[c["id"]].get("security_notes") or "").strip()]
+        if sec:
+            flags.append(f"Security notes on {len(sec)} part{'s' if len(sec) != 1 else ''}")
+        if relabelled:
+            flags.append(f"{relabelled} coverage label(s) pointed outside the option and were "
+                         "counted as glue")
+        out.append({
+            "slot": slot,
+            "slot_label": dict((s, label) for s, label, _ in SLOTS).get(slot, slot.title()),
+            "name": name, "slug": compose.slugify(name) or "option",
+            "pitch": str(raw.get("pitch") or "").strip(),
+            "rationale": str(raw.get("rationale") or "").strip(),
+            "stack": str(raw.get("stack") or "").strip(),
+            "capabilities": caps, "coverage": coverage, "flags": flags,
+            "glue": [str(x) for x in (raw.get("glue") or [])][:10],
+            "new_work": [str(x) for x in (raw.get("new_work") or [])][:10],
+            "donors": sorted({c["donor"] for c in caps}),
+        })
+        if len(out) >= n_options:
+            break
+    return out, reqs
+
+
+# -- wiring ---------------------------------------------------------------------------------
+def attach_wiring(store, options: list[dict[str, Any]]) -> None:
+    """check_wiring per option against every current capability's interfaces."""
+    vocab = store.get_vocabulary()
+    catalog = [_row(c) for c in store.list_capabilities(current_only=True)]
+    ifaces = {c["cid"]: (c["provides"], c["requires"]) for c in catalog}
+    rank = {c["cid"]: {"high": 0, "medium": 1, "low": 2}.get(c["portability"], 3)
+            for c in catalog}
+    names = {c["cid"]: {"id": c["cid"], "capability_id": c["capability_id"], "name": c["name"],
+                        "donor": c["donor"]} for c in catalog}
+
+    def ref(cid):
+        return dict(names.get(cid) or {"id": cid, "capability_id": None, "name": cid,
+                                       "donor": ""})
+
+    for o in options:
+        w = check_wiring([c["id"] for c in o["capabilities"]], ifaces,
+                         platform=vocab.platform, rank=rank).as_dict()
+        for k in _WIRING_KINDS[:-1]:
+            for item in w[k]:
+                item["consumer"] = ref(item["consumer"])
+                if "provider" in item:
+                    item["provider"] = ref(item["provider"])
+                if "candidates" in item:
+                    item["candidates"] = [ref(c) for c in item["candidates"] if c in names]
+        w["unknown"] = [ref(c) for c in w["unknown"]]
+        w["verified"] = False
+        o["wiring"] = w
+
+
+def _recount(w: dict[str, Any]) -> None:
+    w["counts"] = {k: len(w[k]) for k in _WIRING_KINDS}
+
+
+def verify_links(idea: str, options: list[dict[str, Any]], by_cid: dict[str, dict[str, Any]],
+                 *, dropped: list[str], model: str = VERIFY_MODEL) -> float:
+    """One isolated, tool-less call judges every wired link. -> cost in USD. Never raises."""
+    links = [(oi, li, w) for oi, o in enumerate(options)
+             for li, w in enumerate(o["wiring"]["wired"])]
+    if not links:
+        return 0.0
+    lines = []
+    for k, (_, _, w) in enumerate(links):
+        c, p = by_cid.get(w["consumer"]["id"], {}), by_cid.get(w["provider"]["id"], {})
+        lines.append(f"L{k}: {c.get('name')} ({c.get('what', '')[:160]}) NEEDS {w['token']} <- "
+                     f"PROVIDED BY {p.get('name')} ({p.get('what', '')[:160]})")
+    prompt = (
+        f"{VERIFY_SYSTEM}\n\nApplication being designed: {idea}\n\nProposed links:\n"
+        + "\n".join(lines)
+        + '\n\nFor each link answer whether it is valid. Return JSON: '
+          '{"verdicts": {"L0": true, "L1": false}}'
+    )
+    from . import claude_runner
+
+    try:
+        res = claude_runner.run(prompt, cwd=Path.cwd(), model=model, max_turns=1, tools="")
+    except Exception as e:  # noqa: BLE001 - unverified wiring is still useful; say so
+        dropped.append(f"link verification skipped: {type(e).__name__}: {e}")
+        return 0.0
+    obj = compose.extract_json_object(res.text)
+    verdicts = obj.get("verdicts") if isinstance(obj, dict) else None
+    if not isinstance(verdicts, dict):
+        why = f"rc={res.rc}" + (f": {res.stderr.strip()[:200]}" if res.stderr.strip() else "")
+        dropped.append(f"link verification skipped: no verdicts returned ({why})")
+        return res.cost_usd
+    rejected: dict[int, list[int]] = {}
+    for k, (oi, li, _) in enumerate(links):
+        if verdicts.get(f"L{k}") is False:
+            rejected.setdefault(oi, []).append(li)
+    for oi, lis in rejected.items():
+        w = options[oi]["wiring"]
+        for li in sorted(lis, reverse=True):
+            link = w["wired"].pop(li)
+            w["unmet"].append({"token": link["token"], "consumer": link["consumer"],
+                               "candidates": [], "rejected_provider": link["provider"]})
+    for o in options:
+        o["wiring"]["verified"] = True
+        _recount(o["wiring"])
+    return res.cost_usd
+
+
+def score_options(options: list[dict[str, Any]]) -> None:
+    for o in options:
+        cov = Counter(c["kind"] for c in o["coverage"])
+        total = max(1, len(o["coverage"]))
+        wc = o.get("wiring", {}).get("counts", {})
+        links = wc.get("wired", 0) + wc.get("unmet", 0)
+        o["counts"] = {k: cov.get(k, 0) for k in COVERAGE_KINDS}
+        o["scores"] = {
+            "reuse": round(cov.get("catalog", 0) / total, 2),
+            "fit": round(wc.get("wired", 0) / links, 2) if links else None,
+        }
+        if wc.get("unmet"):
+            fillable = sum(1 for u in o["wiring"]["unmet"] if u.get("candidates"))
+            o["flags"].append(f"{wc['unmet']} unmet need(s)"
+                              + (f", {fillable} fillable from the catalog" if fillable else ""))
+
+
+# -- engines --------------------------------------------------------------------------------
+def offline_design(idea: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Deterministic: lean = top 3 of the pool, complete = top 8; one requirement (the idea)."""
+
+    def option(slot, name, picked):
+        return {"slot": slot, "name": name, "pitch": idea.strip(),
+                "rationale": f"Offline pick: the top {len(picked)} capabilities by lexical "
+                             "relevance to the idea.",
+                "stack": "",
+                "capabilities": [{"id": r["cid"], "role": "component"} for r in picked],
+                "coverage": [{"req": "r1", "kind": "catalog", "cap": picked[0]["cid"]}]
+                if picked else [],
+                "glue": [], "new_work": []}
+
+    return {"title": "",
+            "requirements": [{"id": "r1", "text": idea.strip()}],
+            "options": [option("lean", "Lean core", rows[:OFFLINE_LEAN]),
+                        option("complete", "Complete build", rows[:OFFLINE_COMPLETE])]}
+
+
+def _claude_design(idea, rows, n_options, model) -> tuple[dict[str, Any], float]:
+    from . import claude_runner
+
+    prompt = f"{SYSTEM}\n\n{catalog_block(rows)}\n\n{compose_prompt(idea, n_options)}"
+    res = claude_runner.run(prompt, cwd=Path.cwd(), model=model or DESIGN_MODEL, max_turns=1,
+                            tools="")
+    obj = compose.extract_json_object(res.text)
+    if obj is None:
+        why = f"rc={res.rc}" + (f": {res.stderr.strip()[:200]}" if res.stderr.strip() else "")
+        raise ValueError(f"claude-p returned no JSON design ({why})")
+    return obj, res.cost_usd
+
+
+def _unique_design_slug(store, base: str) -> str:
+    base = compose.slugify(base) or "design"
+    slug, n = base, 2
+    while store.get_design(slug) is not None:
+        slug = f"{base}-{n}"
+        n += 1
+    return slug
+
+
+def propose_design(store, idea, *, n_options=3, engine="claude-p", proposal_path=None,
+                   model=None, include_commodity=False, verify=True, shortlist=None) -> Design:
+    idea = (idea or "").strip()
+    if not idea:
+        raise ValueError("an idea is required")
+    n_options = max(2, min(len(SLOTS), int(n_options or 3)))
+    current = store.list_capabilities(current_only=True)
+    if len(current) < 2:
+        raise ValueError("the catalog needs at least 2 capabilities; comprehend a repo first")
+    catalog = {f"c{c.id}": _row(c) for c in current}
+    cost = 0.0
+    if engine == "session":
+        # The session did its own retrieval; validate against every eligible capability.
+        obj = compose.load_session_proposal(proposal_path)
+        caps = [c for c in current if include_commodity or c.novelty != "commodity"]
+        used, notes = "session", []
+    elif engine in ("claude-p", "offline"):
+        caps, used, notes = _pool(store, idea, include_commodity=include_commodity,
+                                  shortlist=shortlist)
+        obj = None
+    else:
+        raise ValueError(f"unknown engine: {engine}")
+    rows = [catalog[f"c{c.id}"] for c in caps]
+    if engine == "claude-p":
+        obj, cost = _claude_design(idea, rows, n_options, model)
+    elif engine == "offline":
+        obj = offline_design(idea, rows)
+    by_cid = {r["cid"]: r for r in rows}
+    dropped: list[str] = []
+    options, reqs = build_options(obj, by_cid, n_options, dropped, store.get_profile())
+    if not options:
+        why = f" ({'; '.join(dropped)})" if dropped else ""
+        raise ValueError(f"no workable option could be built from the catalog{why}")
+    attach_wiring(store, options)
+    verified = False
+    if verify and engine != "offline":
+        cost += verify_links(idea, options, catalog, dropped=dropped)
+        verified = all(o["wiring"].get("verified") for o in options)
+    score_options(options)
+    raw_title = str(obj.get("title") or "").strip()
+    d = Design(slug=_unique_design_slug(store, compose.slug_base(raw_title, idea)), idea=idea,
+               title=raw_title or idea[:60], requirements=reqs, options=options, engine=engine,
+               meta={"catalog_size": len(current), "pool_size": len(rows), "shortlist": used,
+                     "dropped": dropped, "notes": notes, "verified": verified,
+                     "model": (model or DESIGN_MODEL) if engine == "claude-p" else "",
+                     "include_commodity": bool(include_commodity),
+                     "cost_usd": round(cost, 6)},
+               created=now())
+    return store.save_design(d)
+
+
+# -- pick -----------------------------------------------------------------------------------
+def find_option(design: Design, option_ref: str) -> dict[str, Any] | None:
+    ref = str(option_ref or "").strip().lower()
+    for key in ("slot", "slug"):
+        for o in design.options:
+            if str(o.get(key) or "").lower() == ref:
+                return o
+    return None
+
+
+def _glue_markdown(opt: dict[str, Any]) -> str:
+    parts = []
+    if opt.get("rationale"):
+        parts.append(opt["rationale"])
+    if opt.get("glue"):
+        parts.append("\n".join(f"- {g}" for g in opt["glue"]))
+    return "\n\n".join(parts)
+
+
+def _pick_gaps(opt: dict[str, Any]) -> list[dict[str, Any]]:
+    gaps = [{"need": str(x), "suggested_donors": [], "build_fresh": True}
+            for x in opt.get("new_work") or [] if str(x).strip()]
+    for u in (opt.get("wiring") or {}).get("unmet") or []:
+        consumer = u.get("consumer") or {}
+        cname = consumer.get("name") if isinstance(consumer, dict) else str(consumer)
+        donors: list[str] = []
+        for c in u.get("candidates") or []:
+            dn = c.get("donor") if isinstance(c, dict) else ""
+            if dn and dn not in donors:
+                donors.append(dn)
+        gaps.append({"need": f"{u.get('token')} for {cname}", "suggested_donors": donors,
+                     "build_fresh": not u.get("candidates")})
+    return gaps
+
+
+def pick(store, design_ref, option_ref, *, target=None) -> Composition:
+    design = store.get_design(design_ref)
+    if design is None:
+        raise ValueError(f"no such design: {design_ref}")
+    opt = find_option(design, option_ref)
+    if opt is None:
+        have = ", ".join(f"{o.get('slot')}/{o.get('slug')}" for o in design.options)
+        raise ValueError(f"no option {option_ref} in design {design.slug} (have: {have})")
+    rows = []
+    for c in opt.get("capabilities") or []:
+        cap = store.get_capability(c.get("capability_id"))
+        if cap is not None:
+            rows.append(compose._cap_row(cap, {}))
+    raw = {
+        "name": opt.get("name"),
+        "capabilities": [{"capability_id": c.get("capability_id"),
+                          "role": c.get("role") or "component", "order": n}
+                         for n, c in enumerate(opt.get("capabilities") or [], start=1)],
+        "glue": _glue_markdown(opt),
+        "gaps": _pick_gaps(opt),
+        "risks": list(opt.get("flags") or []),
+    }
+    slug = compose.unique_slug(store, compose.slug_base(opt.get("name"), design.idea))
+    proposal, _ = compose.validate_proposal(store, raw, rows, store.get_profile(),
+                                            target=target, slug=slug)
+    proposal.update({
+        "engine": "design",
+        "design_slug": design.slug,
+        "slot": opt.get("slot"),
+        "option_slug": opt.get("slug"),
+        "stack": opt.get("stack") or "",
+        "scores": opt.get("scores") or {},
+        "wiring": opt.get("wiring") or {},
+        "coverage": opt.get("coverage") or [],
+        "requirements": design.requirements,
+    })
+    comp = Composition(slug=slug, name=opt.get("name") or slug, pitch=opt.get("pitch") or "",
+                       idea=design.idea, target_kind=proposal["target_kind"],
+                       target_slug=proposal["target_slug"], proposal=proposal,
+                       status="proposed", created=now())
+    return store.save_composition(comp)
+
+
+# -- rendering / CLI ------------------------------------------------------------------------
+def _fmt_score(v) -> str:
+    return "-" if v is None else f"{v:.2f}"
+
+
+def _ref_name(x) -> str:
+    if isinstance(x, dict):
+        return str(x.get("name") or x.get("id") or "?")
+    return str(x)
+
+
+def render_text(design: Design) -> str:
+    m = design.meta or {}
+    lines = [f"{design.title}  [{design.slug}, {design.engine}]", f"idea: {design.idea}",
+             f"pool: {m.get('pool_size', '?')} of {m.get('catalog_size', '?')} capabilities"
+             f" ({m.get('shortlist', 'lexical')}), verified: {bool(m.get('verified'))}", ""]
+    head = ("slot", "name", "parts", "reuse", "fit", "unmet", "flags")
+    table = [head]
+    for o in design.options:
+        wc = (o.get("wiring") or {}).get("counts") or {}
+        sc = o.get("scores") or {}
+        table.append((o.get("slot", ""), o.get("name", ""), str(len(o.get("capabilities") or [])),
+                      _fmt_score(sc.get("reuse")), _fmt_score(sc.get("fit")),
+                      str(wc.get("unmet", 0)), str(len(o.get("flags") or []))))
+    widths = [max(len(r[i]) for r in table) for i in range(len(head))]
+    for r in table:
+        lines.append("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(r)).rstrip())
+    for o in design.options:
+        lines += ["", f"[{o.get('slot')}] {o.get('name')} ({o.get('slug')})"]
+        for k in ("pitch", "stack", "rationale"):
+            if o.get(k):
+                lines.append(f"  {k}: {o[k]}")
+        lines.append("  parts:")
+        for c in o.get("capabilities") or []:
+            lines.append(f"    {c['id']} {c['name']} ({c['donor']}, {c['license'] or 'unknown'})"
+                         f"{' - ' + c['role'] if c.get('role') else ''}")
+        w = o.get("wiring") or {}
+        for x in w.get("wired") or []:
+            lines.append(f"  wired: {_ref_name(x['consumer'])} needs {x['token']} <- "
+                         f"{_ref_name(x['provider'])}")
+        for x in w.get("unmet") or []:
+            extra = ""
+            if x.get("rejected_provider"):
+                extra = f" (rejected: {_ref_name(x['rejected_provider'])})"
+            elif x.get("candidates"):
+                extra = " (candidates: " + ", ".join(_ref_name(c) for c in x["candidates"]) + ")"
+            lines.append(f"  unmet: {_ref_name(x['consumer'])} needs {x['token']}{extra}")
+        cov = o.get("counts") or {}
+        if cov:
+            lines.append("  coverage: " + ", ".join(f"{k} {cov.get(k, 0)}"
+                                                     for k in COVERAGE_KINDS))
+        for k in ("glue", "new_work"):
+            for x in o.get(k) or []:
+                lines.append(f"  {k.replace('_', '-')}: {x}")
+        for f in o.get("flags") or []:
+            lines.append(f"  flag: {f}")
+    if m.get("dropped"):
+        lines += ["", "dropped:"] + [f"  - {x}" for x in m["dropped"]]
+    if m.get("notes"):
+        lines += ["", "notes:"] + [f"  - {x}" for x in m["notes"]]
+    return "\n".join(lines)
+
+
+def _list_text(designs) -> str:
+    if not designs:
+        return "no designs"
+    return "\n".join(f"{d.id}\t{d.slug}\t{d.engine}\t{len(d.options)} options\t{d.title}"
+                     for d in designs)
+
+
+def _err(msg: str) -> dict:
+    return {"error": msg, "text": f"error: {msg}"}
+
+
+def _design_result(d: Design) -> dict:
+    return {**d.to_dict(), "dropped": (d.meta or {}).get("dropped", []), "text": render_text(d)}
+
+
+def run_cli(store, args) -> dict:
+    words = [str(w) for w in (getattr(args, "idea", None) or [])]
+    if words == ["list"]:
+        ds = store.list_designs()
+        return {"items": [d.to_dict() for d in ds], "text": _list_text(ds)}
+    if words and words[0] == "show":
+        if len(words) != 2:
+            return _err("usage: design show <slug>")
+        d = store.get_design(words[1])
+        if d is None:
+            return _err(f"no such design: {words[1]}")
+        return _design_result(d)
+    if words and words[0] == "pick":
+        if len(words) != 3:
+            return _err("usage: design pick <slug> <slot|option-slug> [--target ...]")
+        try:
+            c = pick(store, words[1], words[2], target=getattr(args, "target", None))
+        except ValueError as e:
+            return _err(str(e))
+        return {"composition": c.to_dict(), "id": c.id, "slug": c.slug,
+                "text": compose.render_text(c)}
+    idea = " ".join(words).strip()
+    if not idea:
+        return _err("an idea is required")
+    engine = getattr(args, "engine", None) or "claude-p"
+    proposal_path = getattr(args, "proposal", None)
+    if engine == "session" and not proposal_path:
+        return _err("--proposal FILE is required for --engine session")
+    shortlist = getattr(args, "shortlist", None)
+    if isinstance(shortlist, str):  # CLI names a backend; propose_design wants a client
+        if shortlist == "lexical":
+            shortlist = None
+        else:
+            from reincarnate import jev
+            try:
+                shortlist = jev.get_client("sim" if shortlist == "jev-sim" else "jev")
+            except jev.JevError as e:
+                return _err(f"--shortlist {getattr(args, 'shortlist')}: {e}")
+    try:
+        d = propose_design(store, idea, n_options=getattr(args, "options", None) or 3,
+                           engine=engine, proposal_path=proposal_path,
+                           model=getattr(args, "model", None),
+                           include_commodity=bool(getattr(args, "include_commodity", False)),
+                           verify=not getattr(args, "no_verify", False),
+                           shortlist=shortlist)
+    except ValueError as e:
+        return _err(str(e))
+    return _design_result(d)

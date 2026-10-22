@@ -85,3 +85,25 @@ def test_designs_roundtrip(store):
     d2 = store.save_design(Design(slug="my-design", idea="y"))
     assert d2.id == d.id and store.get_design("my-design").idea == "y"
     assert len(store.list_designs()) == 1 and store.get_design("nope") is None
+
+
+def test_migrate_adds_confidence_columns(tmp_path):
+    db = tmp_path / "old2.db"
+    s = Store(db)
+    s.upsert_dossier("o", "r", "u", "s", {"capabilities": [{"name": "a", "what": "w"}]})
+    for col in ("confidence", "needs_review"):
+        s.conn.execute(f"ALTER TABLE capabilities DROP COLUMN {col}")
+    s.conn.commit()
+    s.close()
+    s = Store(db)
+    cols = {r["name"] for r in s.conn.execute("PRAGMA table_info(capabilities)")}
+    assert {"confidence", "needs_review"} <= cols
+    cap = s.list_capabilities()[0]
+    assert cap.confidence is None and cap.needs_review is False
+    s.set_capability_fields(cap.id, confidence=0.4, needs_review=True)
+    cap = s.get_capability(cap.id)
+    assert cap.confidence == 0.4 and cap.needs_review is True
+    s.set_capability_fields(cap.id, confidence=-1, needs_review=False)
+    cap = s.get_capability(cap.id)
+    assert cap.confidence is None and cap.needs_review is False
+    s.close()

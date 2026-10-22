@@ -74,6 +74,51 @@ def _table_cell(s: str) -> str:
     return str(s).replace("|", "\\|").replace("\n", " ")
 
 
+def _ref_name(x) -> str:
+    if isinstance(x, dict):
+        return str(x.get("name") or x.get("id") or "?")
+    return str(x)
+
+
+def _wiring_lines(w: dict) -> list[str]:
+    """`proposal["wiring"]` (from a picked design option) as markdown bullets."""
+    out = []
+    for x in w.get("wired") or []:
+        out.append(f"- wired: {_ref_name(x.get('consumer'))} needs `{x.get('token')}` from "
+                   f"{_ref_name(x.get('provider'))}")
+    for x in w.get("unmet") or []:
+        extra = ""
+        if x.get("rejected_provider"):
+            extra = f" (link to {_ref_name(x['rejected_provider'])} rejected)"
+        elif x.get("candidates"):
+            extra = " (catalog candidates: " + ", ".join(
+                _ref_name(c) for c in x["candidates"]) + ")"
+        out.append(f"- unmet: {_ref_name(x.get('consumer'))} needs `{x.get('token')}`{extra}")
+    labels = {"settings": "setting", "external": "external", "owned": "owned state",
+              "platform": "platform"}
+    for k, label in labels.items():
+        for x in w.get(k) or []:
+            out.append(f"- {label}: {_ref_name(x.get('consumer'))} needs `{x.get('token')}`")
+    return out or ["(no interface needs)"]
+
+
+def _coverage_lines(proposal: dict) -> list[str]:
+    texts = {r.get("id"): r.get("text", "") for r in proposal.get("requirements") or []
+             if isinstance(r, dict)}
+    names = {f"c{c.get('capability_id')}": c.get("name", "")
+             for c in proposal.get("capabilities") or [] if isinstance(c, dict)}
+    rows = ["| Requirement | Kind | Capability |", "| --- | --- | --- |"]
+    for row in proposal.get("coverage") or []:
+        if not isinstance(row, dict):
+            continue
+        req = row.get("req", "")
+        label = f"{req}: {texts[req]}" if texts.get(req) else str(req)
+        cap = row.get("cap") or ""
+        rows.append(f"| {_table_cell(label)} | {_table_cell(row.get('kind', ''))} | "
+                    f"{_table_cell(names.get(cap) or cap or '-')} |")
+    return rows
+
+
 def export_kit(store, composition, target, *, zip_it: bool = False,
                notes: str | None = None) -> dict:
     proposal = composition.proposal or {}
@@ -163,8 +208,12 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
           "behavior specs in `specs/`, never from donor code. Donor file paths in the specs "
           "are references only (DO NOT COPY).", ""]
     bp += ["License flags:", *flags, ""] if flags else ["License flags: (none)", ""]
-    bp += ["## Steps", "", *blueprint_steps, "", "## Glue", "", glue or "(none)", "",
-           "## Risks", "", *(risks or ["(none)"]), ""]
+    bp += ["## Steps", "", *blueprint_steps, "", "## Glue", "", glue or "(none)", ""]
+    if proposal.get("wiring"):
+        bp += ["## Wiring", "", *_wiring_lines(proposal["wiring"]), ""]
+    if proposal.get("coverage"):
+        bp += ["## Requirement coverage", "", *_coverage_lines(proposal), ""]
+    bp += ["## Risks", "", *(risks or ["(none)"]), ""]
     if problems:
         bp += ["## Problems", "", *[f"- {p}" for p in problems], ""]
     (kit_dir / "BLUEPRINT.md").write_text("\n".join(bp), encoding="utf-8")
