@@ -221,3 +221,129 @@ refuse non-github https URLs; refuse if `du` > 500 MB after clone (delete it); r
 - validation (deterministic, always): drop capability ids not in the store; drop if <2 caps;
   flag licenses against the profile policy; refuse target slug that is not a known project unless `new:`.
 ```
+
+---
+
+# v0.2: Forge Studio merge (2026-10-22)
+
+Ports Forge Studio's ranked-excerpt comprehension, interface tokens with a canonical
+vocabulary, and multi-design composition into this engine. Plugin and kit stay. Measurements
+behind the defaults: `docs/COST.md`.
+
+## Capability fields (dossier JSON and `capabilities` table)
+
+Each capability gains three fields:
+
+```json
+{"provides": ["data:service-status"], "requires": ["store:service-registry", "ext:docker"],
+ "novelty": "commodity|pattern|distinctive"}
+```
+
+- `provides` / `requires`: 0-6 interface tokens each, `kind:thing`. Kinds and rules are
+  Forge Studio's (`interfaces.KINDS`): auth, store, http, event, notify, ui, schedule, config,
+  data, ext. `requires` is what it needs from OTHER parts or the environment; state it keeps
+  for itself goes in `provides`; `ext:` is never provided by a capability.
+- `novelty` rubric (the "beyond boilerplate" bar):
+  - `commodity`: a competent coding agent writes it correctly from a one-line prompt
+    (retry/backoff, logging, config loading, CRUD endpoints, auth boilerplate).
+  - `pattern`: a known shape with real design choices worth specifying (a plugin registry,
+    an SSE fan-out, a typed integration framework).
+  - `distinctive`: non-obvious behavior an agent would not invent unprompted, the reason to
+    reincarnate (conditional compression only when smaller, TOFU peer identity, a ranking
+    heuristic).
+  - `""` means unrated (imported dossiers before `enrich`).
+- `schema.normalize_dossier` lowercases and dedupes tokens and keeps at most 6 per side, and
+  maps unknown novelty values to `""`. Canonicalization against the vocabulary happens in
+  `Store.upsert_dossier` (it owns the vocabulary).
+
+## Vocabulary (`interfaces.py`, store tables)
+
+```sql
+vocab_tokens(token TEXT PRIMARY KEY, definition TEXT, platform INTEGER DEFAULT 0);
+vocab_aliases(alias TEXT PRIMARY KEY, canonical TEXT);   -- canonical NULL = drop the token
+ALTER capabilities ADD provides_json TEXT DEFAULT '[]', requires_json TEXT DEFAULT '[]',
+                       novelty TEXT DEFAULT '';
+designs(id INTEGER PRIMARY KEY, slug TEXT UNIQUE, idea TEXT, title TEXT, requirements_json TEXT,
+        options_json TEXT, engine TEXT, meta_json TEXT, created TEXT);
+```
+
+`Store.migrate()` adds missing columns with `ALTER TABLE` (check `PRAGMA table_info`), and
+seeds the vocabulary from the packaged `src/reincarnate/data/vocabulary.json` when
+`vocab_tokens` is empty. Store API additions:
+
+```python
+def get_vocabulary(self) -> interfaces.Vocabulary
+def set_capability_fields(self, capability_id, *, provides=None, requires=None, novelty=None) -> None
+    # canonicalizes tokens via the vocabulary; None leaves a field unchanged
+def save_design(self, d: Design) -> Design          # insert or update by slug
+def get_design(self, ref: str | int) -> Design | None
+def list_designs(self) -> list[Design]
+```
+
+`models.Capability` gains `provides: list[str]`, `requires: list[str]`, `novelty: str`.
+`models.Design(id, slug, idea, title, requirements: list[dict], options: list[dict], engine,
+meta: dict, created)`.
+
+`interfaces.py` is a port of Forge Studio's `interfaces.py` (KINDS, normalize_token,
+normalize_list, is_external, Vocabulary with canonicalize/platform/block, Wiring,
+check_wiring) with `Vocabulary` built from the store instead of Forge Studio's DB.
+
+## Comprehension (`excerpt.py`, `comprehend.py`)
+
+- `excerpt.py`: port of Forge Studio's `select_files`, `_score`, the skip/source/manifest/
+  lockfile sets, `license_hint`, `clean_license`.
+- Default mode is **excerpt**: rank files, pack up to `budget` characters (default 120,000),
+  one isolated `claude -p` call with no tools and `max_turns=1`. `--mode agentic` keeps the
+  v0.1 read-only multi-turn pass.
+- Default model **`claude-haiku-5-5`** for both modes (`--model` overrides).
+- The prompt asks for the v0.1 schema plus `provides`, `requires`, `novelty`, includes the
+  vocabulary block (`Vocabulary.block()`), and treats all repo text as data.
+- License: if the model returns unknown, fall back to `excerpt.license_hint`; always pass
+  through `clean_license`.
+
+## Tier 2 enrichment (`enrich.py`)
+
+`reincarnate enrich [<owner/repo>|--all] [--only-missing] [--batch 25] [--model claude-haiku-5-5]`
+rates capabilities that lack `novelty` or interfaces, in batches, from catalog text only (no
+donor source): one isolated tool-less call per batch returning
+`{"<capability id>": {"novelty": "...", "provides": [...], "requires": [...]}}`. Unknown ids
+are ignored; results go through `set_capability_fields`. This is where Jev slots in later.
+
+`reincarnate import-interfaces <capability-interfaces.json>` applies second-brain's backfill
+(keys `40-Code/repos/<owner>-<repo>.md::<lowercased capability name>`) onto current
+capabilities by matching `<owner>-<repo>` (lowercased) and the lowercased name.
+
+## Multi-design composition (`design.py`)
+
+Port of Forge Studio's `compose.py` on this store:
+
+- `SLOTS`: lean, complete, alternative, bold. `MAX_CAPS` 8, `MAX_JACCARD` 0.7.
+- Pool: lexical TF-IDF `rank_catalog` over current capabilities to at most 120, excluding
+  `novelty == "commodity"` unless `--include-commodity`.
+- Engines: `claude-p` (default model `claude-opus-5-5`), `session` (`--proposal FILE`
+  holding the same JSON the model would return), `offline` (deterministic lean + complete
+  from the ranked pool, no requirements beyond the idea itself).
+- Deterministic validation exactly as Forge Studio's `build_options`: real ids only, at
+  least 2 capabilities, near-duplicate options dropped, coverage labels pointing outside the
+  option relabelled glue, missing labels net-new, license-risk and security flags.
+- Wiring: `check_wiring` per option against every current capability's interfaces, plus
+  optional link verification by one isolated Haiku call (`--no-verify` skips).
+- Scores: reuse = catalog-covered requirements / requirements; fit = wired / (wired + unmet).
+- `reincarnate design pick <design> <slot|option-slug> [--target ...]` turns one option into a
+  regular `Composition` (capabilities with roles, glue from glue + rationale, gaps from
+  net-new work and unmet wiring, risks from flags, `proposal["wiring"]` and
+  `proposal["coverage"]` attached), so `reincarnate kit` builds it unchanged.
+
+## CLI additions
+
+```
+reincarnate comprehend <url> [--mode excerpt|agentic] [--model M] [--budget N] [--max-turns N] [--force]
+reincarnate enrich [<owner/repo>] [--all] [--only-missing] [--batch N] [--model M]
+reincarnate import-interfaces <file>
+reincarnate vocab [--kind K] [--json]
+reincarnate catalog ... [--novelty commodity|pattern|distinctive|unrated]
+reincarnate design "<idea>" [--options 2-4] [--engine claude-p|session|offline] [--proposal FILE]
+                            [--model M] [--include-commodity] [--no-verify] [--json]
+reincarnate design list | show <slug>
+reincarnate design pick <slug> <slot|option-slug> [--target <slug>|new:<name>]
+```

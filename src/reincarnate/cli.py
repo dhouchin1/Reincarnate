@@ -217,8 +217,9 @@ def cmd_clone(store, args):
 
 
 def cmd_comprehend(store, args):
-    out = _lazy("comprehend").comprehend_url(store, args.url, model=args.model,
-                                             max_turns=args.max_turns, force=args.force)
+    out = _lazy("comprehend").comprehend_url(
+        store, args.url, model=args.model, max_turns=args.max_turns, force=args.force,
+        mode=getattr(args, "mode", "excerpt"), budget=getattr(args, "budget", None))
     emit(args, out, _summary(out))
 
 
@@ -284,11 +285,37 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", default="")
     p.add_argument("--cost", type=float, default=0.0)
 
-    p = add("comprehend", cmd_comprehend, "clone + comprehend + ingest + overlay")
+    p = add("comprehend", cmd_comprehend, "clone + comprehend + ingest")
     p.add_argument("url")
-    p.add_argument("--model")
+    p.add_argument("--mode", choices=["excerpt", "agentic"], default="excerpt")
+    p.add_argument("--model", help="default claude-haiku-5-5")
+    p.add_argument("--budget", type=int, help="excerpt character budget (default 120000)")
     p.add_argument("--max-turns", type=int)
     p.add_argument("--force", action="store_true")
+
+    p = add("enrich", make_delegate("enrich"), "rate novelty + interface tokens (Tier 2)")
+    p.add_argument("repo", nargs="?", help="owner/repo")
+    p.add_argument("--all", action="store_true")
+    p.add_argument("--only-missing", action="store_true")
+    p.add_argument("--batch", type=int, default=25)
+    p.add_argument("--model", default="claude-haiku-5-5")
+
+    p = add("import-interfaces", make_delegate("importers.interfaces"),
+            "apply second-brain capability-interfaces.json")
+    p.add_argument("file")
+
+    p = add("vocab", make_delegate("interfaces"), "list the canonical interface vocabulary")
+    p.add_argument("--kind")
+
+    p = add("design", make_delegate("design"), "multi-option app designs from the catalog")
+    p.add_argument("idea", nargs="*", help='"<idea>" | list | show <slug> | pick <slug> <option>')
+    p.add_argument("--options", type=int, default=3)
+    p.add_argument("--engine", choices=["claude-p", "session", "offline"], default="claude-p")
+    p.add_argument("--proposal", help="JSON file with a session-authored design (engine=session)")
+    p.add_argument("--model", help="default claude-opus-5-5")
+    p.add_argument("--target", help="for pick: <slug> or new:<name>")
+    p.add_argument("--include-commodity", action="store_true")
+    p.add_argument("--no-verify", action="store_true")
 
     p = add("overlay", make_delegate("overlay"), "score capabilities against your projects")
     p.add_argument("repo", nargs="?", help="owner/repo")
@@ -309,6 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--donor")
     p.add_argument("--fit", help="project slug")
     p.add_argument("--gaps", action="store_true")
+    p.add_argument("--novelty", choices=["commodity", "pattern", "distinctive", "unrated"])
 
     p = add("vote", cmd_vote, "vote on a capability")
     p.add_argument("capability_id", type=int)
