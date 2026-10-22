@@ -23,8 +23,9 @@ NO_DEFINITION = "no canonical definition; infer from the consumer"
 
 # Ecosystem -> stack keywords (whole-word, case-insensitive) and its single-suite command.
 ECOSYSTEMS: dict[str, tuple[str, ...]] = {
-    "node": ("typescript", "javascript", "node", "next.js", "nextjs", "react", "vue", "svelte",
-             "express", "trpc", "vite", "deno", "bun"),
+    "node": ("typescript", "javascript", "node", "next.js", "nextjs", "react", "preact", "vue",
+             "nuxt", "svelte", "sveltekit", "solid", "solidjs", "express", "trpc", "vite", "deno",
+             "bun"),
     "python": ("python", "fastapi", "django", "flask", "pytest"),
     "go": ("go", "golang"),
     "rust": ("rust", "cargo"),
@@ -36,6 +37,25 @@ _ECO_MANIFEST = {"node": "`package.json`", "python": "`pyproject.toml`", "go": "
                  "rust": "`Cargo.toml`"}
 _MANIFEST_ECO = {"package.json": "node", "pyproject.toml": "python", "go.mod": "go",
                  "Cargo.toml": "rust"}
+
+# UI framework keyword -> its standard component-testing library (DOM environment: jsdom).
+UI_TEST_LIBS: dict[str, str] = {
+    "react": "@testing-library/react", "next.js": "@testing-library/react",
+    "nextjs": "@testing-library/react", "preact": "@testing-library/preact",
+    "vue": "@vue/test-utils", "nuxt": "@vue/test-utils",
+    "svelte": "@testing-library/svelte", "sveltekit": "@testing-library/svelte",
+    "solid": "@solidjs/testing-library", "solidjs": "@solidjs/testing-library",
+}
+UI_DOM_ENV = "jsdom"
+COMPONENT_SMOKE_CHECK = ("A component smoke test renders a component in the DOM test environment "
+                         "under the test command")
+COMPONENT_CHECK = "This step's UI behavior is covered by component tests"
+STACK_ITEM_DEPS = ("Each stack item includes what it needs to work: its type definitions, its "
+                   "peer dependencies, and the driver an ORM or database client needs (for "
+                   "example a SQLite driver for Drizzle). List those in `DEPENDENCIES.md` under "
+                   "the stack item they serve; they are not extras.")
+NO_SHAPES = ("Data shapes: not recorded for this part; define the shapes you need and list them "
+             "in your step notes.")
 
 
 # `c17` capability references in free text; `c2/c177` lists resolve item by item, while path
@@ -96,9 +116,37 @@ def ecosystems(stack: list[str]) -> list[str]:
     text = " ".join(str(s) for s in stack or []).lower()
     out = []
     for eco, words in ECOSYSTEMS.items():
-        if any(re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", text) for w in words):
+        if any(_has_word(text, w) for w in words):
             out.append(eco)
     return out
+
+
+def _has_word(text: str, word: str) -> bool:
+    return re.search(rf"(?<![a-z0-9]){re.escape(word)}(?![a-z0-9])", text) is not None
+
+
+def ui_test_tools(stack: list[str]) -> list[str]:
+    """Component-test tools for the stack's UI frameworks (library first, then `jsdom`); [] when
+    the stack has no UI framework."""
+    text = " ".join(str(s) for s in stack or []).lower()
+    libs: list[str] = []
+    for word, lib in UI_TEST_LIBS.items():
+        if _has_word(text, word) and lib not in libs:
+            libs.append(lib)
+    return [*libs, UI_DOM_ENV] if libs else []
+
+
+def _code_list(items: list[str]) -> str:
+    quoted = [f"`{x}`" for x in items]
+    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " with " + quoted[-1]
+
+
+def component_test_line(tools: list[str]) -> str:
+    """The CLAUDE.md `## Tests` line for component tests ("" without UI tooling)."""
+    if not tools:
+        return ""
+    return (f"Component tests: {_code_list(tools)} (set up in step 0). UI behavior is covered by "
+            "component tests that run under the test command.")
 
 
 def derive_test_cmd(ecos: list[str]) -> str:
@@ -170,6 +218,7 @@ def constraint_lines(policy: dict | None) -> list[str]:
         f"- Do **not** open, copy, paste, or transliterate source from {who}. "
         "Reimplement from the behavioral description only.",
         *dependency_lines(policy),
+        f"- {STACK_ITEM_DEPS}",
         conventions,
         "- Include unit tests" + (f"; the suite runs with `{test_cmd}`." if test_cmd else "."),
     ]
@@ -207,11 +256,55 @@ def _integration_intent(dossier, capability_name: str, target: str) -> str:
     return ""
 
 
+def _clean(v) -> str:
+    return scrub_paths(str(v or "").strip())
+
+
+def shape_lines(data_shapes, key_values) -> list[str]:
+    """`**Data shapes:**` (one block per shape) and `**Key values:**`, scrubbed like other
+    dossier prose; no shapes -> the NO_SHAPES line."""
+    blocks: list[list[str]] = []
+    for shape in data_shapes or []:
+        if not isinstance(shape, dict) or not _clean(shape.get("name")):
+            continue
+        block = [_clean(shape.get("name"))]
+        for f in shape.get("fields") or []:
+            if not isinstance(f, dict) or not _clean(f.get("name")):
+                continue
+            typ = _clean(f.get("type"))
+            meaning = _clean(f.get("meaning"))
+            block.append(f"- {_clean(f.get('name'))}" + (f" ({typ})" if typ else "")
+                         + (f": {meaning}" if meaning else ""))
+        if _clean(shape.get("notes")):
+            block.append(f"Notes: {_clean(shape.get('notes'))}")
+        blocks.append(block)
+    out: list[str] = []
+    if blocks:
+        out += ["**Data shapes:**", ""]
+        for block in blocks:
+            out += [*block, ""]
+        out.pop()
+    else:
+        out.append(NO_SHAPES)
+    kvs = []
+    for kv in key_values or []:
+        if not isinstance(kv, dict) or not _clean(kv.get("name")):
+            continue
+        meaning = _clean(kv.get("meaning"))
+        kvs.append(f"- {_clean(kv.get('name'))}: {_clean(kv.get('value'))}"
+                   + (f" — {meaning}" if meaning else ""))
+    if kvs:
+        out += ["", "**Key values:**", "", *kvs]
+    return out
+
+
 def build_clean_room_spec(store, capability, *, target_slug: str, project=None,
                           include_header: bool = True, policy: dict | None = None,
-                          acceptance: list[str] | None = None) -> str:
+                          acceptance: list[str] | None = None,
+                          notes: list[str] | None = None) -> str:
     """`acceptance`: ready check strings (stored checks + requirement coverage); none ->
-    the fallback line."""
+    the fallback line. `notes`: extra markdown lines (kit cross-cutting notes) placed right
+    before the acceptance checks."""
     dossier = store.get_dossier(capability.dossier_id)
     name = capability.name or "capability"
     what = scrub_paths((capability.what or "").strip())
@@ -251,6 +344,9 @@ def build_clean_room_spec(store, capability, *, target_slug: str, project=None,
         "**Behavior to implement:**",
         "",
         what or "_(no description recorded)_",
+        "",
+        *shape_lines(getattr(capability, "data_shapes", None) or [],
+                     getattr(capability, "key_values", None) or []),
     ]
     if pnotes:
         lines += ["", "**Design notes (how to build it cleanly):**", "", pnotes]
@@ -259,6 +355,8 @@ def build_clean_room_spec(store, capability, *, target_slug: str, project=None,
         lines += [f"- {s}" for s in sec_reqs]
     if intent:
         lines += ["", f"**Integration intent (from the dossier):** {intent}"]
+    if notes:
+        lines += ["", *notes]
     lines += ["", *acceptance_lines([scrub_paths(str(c)) for c in acceptance or []])]
     if files:
         lines += ["", "**Donor reference files (context only — DO NOT COPY):** "
@@ -329,9 +427,55 @@ def build_fresh_spec(gap: dict, *, target_slug: str, project=None, store=None,
     return "\n".join(lines) + "\n"
 
 
+def build_glue_spec(req_id: str, text: str, *, target_slug: str, policy: dict | None = None,
+                    glue_lines: list[str] | None = None, joins: list[str] | None = None,
+                    related: list[str] | None = None, notes: list[str] | None = None) -> str:
+    """A glue-only requirement: integration code between parts built in earlier steps.
+    `joins`: labels such as "Parser (step 1)" for the parts its glue lines name; `related`:
+    parts that only share words with it (listed, not joined); `glue_lines`: the design's glue
+    bullets that overlap the requirement."""
+    policy = policy or {}
+    text = str(text or "").strip() or str(req_id)
+    behavior = [text]
+    lines_ = [scrub_paths(str(g).strip()) for g in glue_lines or [] if str(g).strip()]
+    if lines_:
+        behavior += ["", "From the design's glue:", "", *[f"- {g}" for g in lines_]]
+    joined = [f"- {j}" for j in joins or []] or [
+        "(no part is named for this requirement, so this step comes after every part and "
+        "build-fresh step; build it on what they provide)"]
+    lines = [
+        f"## Glue: {text}",
+        "",
+        f"**Goal:** Build the integration below natively in `{_target_name(target_slug)}` "
+        f"({_stack_text(policy)}), joining parts built in earlier steps. There is no donor.",
+        "",
+        "**Constraints — the clean-room air gap:**",
+        *constraint_lines(policy),
+        "",
+        "**Behavior to implement:**",
+        "",
+        *behavior,
+        "",
+        "**Parts it joins:**",
+        "",
+        *joined,
+    ]
+    if related:
+        lines += ["", "**Possibly related parts (word overlap only, not confirmed):**", "",
+                  *[f"- {r}" for r in related]]
+    if notes:
+        lines += ["", *notes]
+    check = f"Satisfies requirement {req_id}: {text}" if req_id else f"Satisfies: {text}"
+    lines += ["", *acceptance_lines([check])]
+    return "\n".join(lines) + "\n"
+
+
 def build_scaffold_spec(stack: list[str], test_cmd: str, ecosystems: list[str], *,
-                        target_name: str = "the new project") -> str:
-    """Step 0 for a new target: manifests, skeleton, test runner, DEPENDENCIES.md."""
+                        target_name: str = "the new project", ui_tools: list[str] | None = None,
+                        auth: dict | None = None) -> str:
+    """Step 0 for a new target: manifests, skeleton, test runner, DEPENDENCIES.md. `ui_tools`
+    (from `ui_test_tools`) adds component-test setup; `auth` `{step, name}` adds the
+    authorization guard seam that the auth step wires later."""
     stack = [str(s) for s in stack or [] if str(s).strip()]
     policy = {"kind": "new", "stack": stack, "test_cmd": test_cmd}
     ecos = [e for e in ecosystems or [] if e in TEST_COMMANDS]
@@ -367,13 +511,22 @@ def build_scaffold_spec(stack: list[str], test_cmd: str, ecosystems: list[str], 
         "- A README with a \"Run the tests\" section.",
         "- `DEPENDENCIES.md` listing every declared dependency with its reason (\"in the "
         "stack\" for stack items).",
-        "",
-        *acceptance_lines([
-            f"`{test_cmd}` exits 0 with at least one test per ecosystem{per_eco}",
-            "`DEPENDENCIES.md` covers every declared dependency",
-            "No feature code from later steps",
-        ]),
     ]
+    checks = [f"`{test_cmd}` exits 0 with at least one test per ecosystem{per_eco}",
+              "`DEPENDENCIES.md` covers every declared dependency",
+              "No feature code from later steps"]
+    if ui_tools:
+        lines.append(f"- Component tests: a DOM test environment and the UI framework's "
+                     f"component-testing library ({_code_list(ui_tools)}), counted as part of "
+                     f"the stack and run by `{test_cmd}`. An equivalent tool is fine if you log "
+                     "it in `DEPENDENCIES.md`.")
+        checks.append(COMPONENT_SMOKE_CHECK)
+    if auth:
+        lines.append(f"- One authorization guard: a single function every endpoint and edit "
+                     f"action calls. It allows everything until step {auth['step']} "
+                     f"({auth['name']}) wires it to identity and roles.")
+        checks.append("A test shows the authorization guard currently allows every request")
+    lines += ["", *acceptance_lines(checks)]
     return "\n".join(lines) + "\n"
 
 

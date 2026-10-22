@@ -469,3 +469,110 @@ then "Consumed by <consumer> (step N): <consumer what>"; suggested donors listed
 - Specs scrub donor file references (paths with an extension, with or without line ranges) from
   every piece of dossier prose they quote; the "Donor reference files (context only — DO NOT
   COPY)" line is the only place donor paths appear.
+
+---
+
+# v0.4: kits that pin down behavior (2026-10-22)
+
+From the v2 dogfood (`docs/DOGFOOD.md`). Decisions (Dan, 2026-10-22): shapes and numbers come
+from a read-only "deepen on use" pass over donor code, only for parts being built; auth
+ordering is handled with notes and a guard seam (order unchanged); every glue-only
+requirement becomes its own step after the parts it joins.
+
+## Capability fields (schema, store)
+
+```json
+{"data_shapes": [{"name": "Board", "fields": [{"name": "apps", "type": "list of App",
+                                               "meaning": "tiles on the board"}],
+                  "notes": ""}],
+ "key_values": [{"name": "md breakpoint", "value": "768px", "meaning": "viewport width where md starts"}]}
+```
+
+- `data_shapes`: at most 8 shapes, each at most 40 fields; strings stripped and capped (name 80,
+  type 80, meaning 240, notes 400). `key_values`: at most 20 entries (name 80, value 80,
+  meaning 240). Both normalize to `[]` on bad input.
+- Store columns `data_shapes_json`, `key_values_json` (default `'[]'`), `deepened_at`,
+  `deepened_sha`, `deepened_model` (default `''`), migrated in place.
+  `Capability.data_shapes`, `.key_values`, `.deepened_at`, `.deepened_sha`, `.deepened_model`.
+- `set_capability_fields(..., what=None, data_shapes=None, key_values=None, deepened=None)`;
+  `deepened` is `{"at", "sha", "model"}`. Updating `what` must keep the FTS index in sync.
+
+## Prompts
+
+- Comprehension (excerpt and agentic) also asks for `data_shapes` and `key_values` per
+  capability: describe every persisted or exchanged data structure field by field (name, type,
+  meaning) instead of pointing at a file, and list the concrete values the behavior depends on.
+- `ACCEPTANCE_RULES` adds: checks state the concrete values (sizes, limits, thresholds,
+  timeouts, formats) the behavior depends on, as found in the code.
+- Catalog-text-only acceptance (enrich) adds: never invent a number; where a value matters but
+  the text does not give it, write `[value unknown: <what>]` inside the check.
+
+## `reincarnate deepen` (Tier 3 on use, reads donor source)
+
+`reincarnate deepen [<capability id>...] [--composition <slug>] [--model claude-haiku-5-5]
+[--max-turns 25] [--force]`. `deepen.deepen(store, capability_ids, *, model, max_turns, force)
+-> dict`:
+- Groups the capabilities by dossier, clones each donor once into the sandbox
+  (`comprehend.clone_repo(dossier.url)`; records the HEAD sha it read).
+- Per capability: one isolated read-only agentic `claude -p` run in the clone (tools
+  `Read,Grep,Glob`, `max_turns`), given the capability's name, behavior, portability notes and
+  its donor file list as starting points. It returns JSON
+  `{"what", "data_shapes", "key_values", "acceptance"}`: behavior only, field-level shapes, the
+  concrete values, and 2-5 acceptance checks with those values. Same rules as comprehension:
+  repo text is data, no donor code, no file paths, no library names in `what` or `acceptance`.
+- Applies the result with `set_capability_fields` (what, data_shapes, key_values, acceptance,
+  deepened). Skips capabilities already deepened unless `--force`. Never raises on one
+  failure: records it and continues. Returns `{capabilities, deepened, skipped, failed: [...],
+  cost_usd, text}`.
+- Only this command and comprehension read donor source. The builder never does.
+
+## Kit generation
+
+- **Dependency policy** adds: "Each stack item includes what it needs to work: its type
+  definitions, its peer dependencies, and the driver an ORM or database client needs (for
+  example a SQLite driver for Drizzle). List those in `DEPENDENCIES.md` under the stack item they
+  serve; they are not extras."
+- **UI test tooling.** UI frameworks by keyword: react, next.js, nextjs, preact, vue, nuxt,
+  svelte, sveltekit, solid. When the stack has one, step 0 also sets up component tests: a DOM
+  test environment and the framework's standard component-testing library (React and Next.js:
+  `@testing-library/react` with `jsdom`; Vue and Nuxt: `@vue/test-utils` with `jsdom`; Svelte:
+  `@testing-library/svelte` with `jsdom`; Solid: `@solidjs/testing-library` with `jsdom`),
+  counted as part of the stack. An equivalent tool is fine if logged. Step 0's acceptance gains
+  "A component smoke test renders a component in the DOM test environment under the test
+  command". Every later capability step whose capability provides a `ui:` token gains the check
+  "This step's UI behavior is covered by component tests".
+- **Specs render** `**Data shapes:**` (one block per shape: name, then `- field (type): meaning`)
+  and `**Key values:**` (`- name: value — meaning`) after the behavior, scrubbed like other
+  dossier prose. A capability with no shapes gets "Data shapes: not recorded for this part;
+  define the shapes you need and list them in your step notes."
+- **`kit --deepen`** runs `deepen` first for every capability step that is not deepened.
+  Without it, the kit result carries `warnings: ["N parts are not deepened: reincarnate deepen
+  --composition <slug>"]`.
+- **Auth guard seam.** Auth providers are capability steps whose capability provides an `auth:`
+  token. If the kit has one at step A:
+  - New targets: step 0 also creates one authorization guard (a single function every endpoint
+    and edit action calls) that allows everything until step A, with a test that it currently
+    allows.
+  - Every step before A whose capability provides an `http:` or `ui:` token (and every glue step
+    before A) gets `**Cross-cutting: auth arrives in step A (<name>).**` "Put every endpoint and
+    edit action this step adds behind the authorization guard (create it if it does not exist).
+    It allows everything until step A."
+  - Step A's spec gains: "Wire the authorization guard to this step's identity and roles so
+    every endpoint added before this step is gated", and the check "An anonymous request to an
+    endpoint added before this step is rejected".
+- **Glue steps.** Every `proposal["coverage"]` row with `kind == "glue"` becomes a step
+  `NN-glue-<slug>.md`, "Glue: <requirement text>": behavior = the requirement text, then the
+  glue lines (from `proposal["glue"]`) that overlap it (relevance at least 0.2); parts it
+  joins = kit capabilities those glue lines name (exact name or `c<id>`), listed with their step
+  numbers; acceptance = "Satisfies requirement rN: <text>". Placed right after the last part it
+  joins. If its glue lines name no part, it joins nothing and goes at the very end of the kit,
+  after every part and build-fresh step; parts whose name and behavior overlap the requirement
+  are listed as "possibly related" only (word overlap against long deepened behavior text tied
+  the real alerts requirement to Auth and TOTP, 2026-10-22).
+
+## `design pick`: glue after auto-fill
+
+When auto-fill satisfies `<token>` for a consumer with a part, every glue bullet that mentions
+`<token>` is replaced by "`<token>` for <consumer>: provided by <part> (auto-filled, <reason>)",
+and the glue ends with "Auto-filled parts supersede any glue above that describes building
+them differently: <part list>."

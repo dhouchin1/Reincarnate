@@ -59,7 +59,8 @@ def test_real_db_copy_migrates_acceptance(tmp_path):
     cols = {r["name"] for r in s.conn.execute("PRAGMA table_info(capabilities)")}
     assert "acceptance_json" in cols
     caps = s.list_capabilities(current_only=False)
-    assert len(caps) == n and all(c.acceptance == [] for c in caps)
+    # The live catalog's contents change (e.g. after a backfill); assert shape, not values.
+    assert len(caps) == n and all(isinstance(c.acceptance, list) for c in caps)
     s.close()
     Store(db).close()  # second open is a no-op
 
@@ -118,7 +119,7 @@ def test_enrich_acceptance_only(store, monkeypatch):
     assert c.acceptance == ["Given a, b"]
     assert (c.novelty, c.provides) == ("pattern", ["auth:session"])  # untouched
     p = seen[0]
-    assert prompts.ACCEPTANCE_RULES in p and "RUBRIC" not in p
+    assert prompts.CATALOG_ACCEPTANCE_RULES in p and "RUBRIC" not in p
     assert "commodity: a competent" not in p and "Canonical vocabulary" not in p
     assert '"acceptance"' in p and '"novelty"' not in p and '"provides"' not in p
 

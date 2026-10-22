@@ -571,12 +571,41 @@ def _resolve_ids(text: str, names: dict[str, str]) -> str:
     return salvage.resolve_cids(text, lambda cid: names.get(f"c{cid}"))
 
 
-def _glue_markdown(opt: dict[str, Any], names: dict[str, str] | None = None) -> str:
+def filled_line(f: dict[str, Any]) -> str:
+    return (f"`{f.get('token')}` for {f.get('consumer')}: provided by {f.get('name')} "
+            f"(auto-filled, {f.get('reason')})")
+
+
+def glue_after_autofill(glue: list[str], filled: list[dict[str, Any]]) -> list[str]:
+    """Every glue bullet that mentions an auto-filled token is replaced by that fill's
+    provided-by line (once per fill; repeats are dropped)."""
+    out: list[str] = []
+    for g in glue:
+        low = str(g).lower()
+        hits = [f for f in filled if str(f.get("token") or "") and
+                str(f["token"]).lower() in low]
+        for line in [filled_line(f) for f in hits] or [str(g)]:
+            if line not in out:
+                out.append(line)
+    return out
+
+
+def _glue_markdown(opt: dict[str, Any], names: dict[str, str] | None = None,
+                   filled: list[dict[str, Any]] | None = None) -> str:
     parts = []
+    filled = filled or []
     if opt.get("rationale"):
         parts.append(opt["rationale"])
-    if opt.get("glue"):
-        parts.append("\n".join(f"- {g}" for g in opt["glue"]))
+    glue = glue_after_autofill([str(g) for g in opt.get("glue") or []], filled)
+    if glue:
+        parts.append("\n".join(f"- {g}" for g in glue))
+    if filled:
+        fparts = []
+        for f in filled:
+            if f.get("name") and f["name"] not in fparts:
+                fparts.append(f["name"])
+        parts.append("Auto-filled parts supersede any glue above that describes building them "
+                     f"differently: {', '.join(fparts)}.")
     return _resolve_ids("\n\n".join(parts), names or {})
 
 
@@ -600,17 +629,22 @@ def _reapply_rejections(w: dict[str, Any], rejected: set[tuple[str, str, str]]) 
     _recount(w)
 
 
+def text_relevance(a: str, b: str) -> float:
+    """Content-word overlap of two texts over the smaller word set, 0..1 (2 decimals)."""
+    wa, wb = set(_words(a)), set(_words(b))
+    if not wa or not wb:
+        return 0.0
+    return round(len(wa & wb) / min(len(wa), len(wb)), 2)
+
+
 def relevance(candidate: dict[str, Any], consumer: dict[str, Any], token: str,
               definition: str = "") -> float:
     """Content-word overlap between the candidate (name + what) and the need (consumer name +
     what, the token's thing words, its vocabulary definition), over the smaller set: 0..1."""
-    cand = set(_words(f"{candidate.get('name', '')} {candidate.get('what', '')}"))
     thing = token.split(":", 1)[-1]
-    need = set(_words(f"{consumer.get('name', '')} {consumer.get('what', '')} {thing} "
-                      f"{definition}"))
-    if not cand or not need:
-        return 0.0
-    return round(len(cand & need) / min(len(cand), len(need)), 2)
+    return text_relevance(f"{candidate.get('name', '')} {candidate.get('what', '')}",
+                          f"{consumer.get('name', '')} {consumer.get('what', '')} {thing} "
+                          f"{definition}")
 
 
 def rank_candidates(ctx: dict[str, Any], need: dict[str, Any], profile) -> list[dict[str, Any]]:
@@ -746,7 +780,7 @@ def pick(store, design_ref, option_ref, *, target=None) -> Composition:
         "capabilities": [{"capability_id": c.get("capability_id"),
                           "role": c.get("role") or "component", "order": n}
                          for n, c in enumerate(caps, start=1)],
-        "glue": _glue_markdown(opt, names),
+        "glue": _glue_markdown(opt, names, filled),
         "gaps": _pick_gaps(opt, wiring, ctx, profile),
         "risks": list(opt.get("flags") or []),
     }

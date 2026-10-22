@@ -384,7 +384,7 @@ def test_pick_builds_composition_and_kit(seeded, tmp_path):
 
     out = kit.export_kit(seeded, c, "new:boardlite")
     text = (paths.data_dir() / "new" / "boardlite" / ".reincarnate" / "BLUEPRINT.md").read_text()
-    assert out["steps"] == 5  # scaffold + 3 capabilities + 1 gap
+    assert out["steps"] == 6  # scaffold + 3 capabilities + 1 glue (r2, relabelled) + 1 gap
     assert "## Wiring" in text and "## Requirement coverage" in text
     assert "Team dashboard needs `auth:session` from Session login" in text
     assert "| r1: users sign in | catalog | Session login |" in text
@@ -516,7 +516,9 @@ def test_pick_autofills_and_structures_gaps(gridded, tmp_path):
          "consumer_capability_id": ids["Grid dashboard"],
          "before_capability_id": ids["Grid dashboard"]}]
     assert p["glue"] == ("Session login guards Grid dashboard.\n\n"
-                         "- Grid dashboard's tiles call the client")
+                         "- Grid dashboard's tiles call the client\n\n"
+                         "Auto-filled parts supersede any glue above that describes building "
+                         "them differently: Layout store B, Cache box.")
 
     kit.export_kit(gridded, c, "new:grid")
     kd = paths.data_dir() / "new" / "grid" / ".reincarnate"
@@ -535,6 +537,24 @@ def test_pick_autofills_and_structures_gaps(gridded, tmp_path):
     assert "- Covers requirement r1: arrange tiles" in dash
     bp = (kd / "BLUEPRINT.md").read_text()
     assert "Session login guards Grid dashboard." in bp
+
+
+def test_pick_rewrites_glue_for_autofilled_tokens(gridded, tmp_path):
+    d, ids = _grid_design(gridded, tmp_path)
+    dash = f"c{ids['Grid dashboard']}"
+    d.options[0]["glue"] = [f"layout-config table backing {dash} (store:layout-config)",
+                            f"a second STORE:LAYOUT-CONFIG note for {dash}",
+                            f"{dash}'s tiles call the client"]
+    gridded.save_design(d)
+    glue = design.pick(gridded, d.slug, "lean", target="new:grid").proposal["glue"]
+    filled = ("- `store:layout-config` for Grid dashboard: provided by Layout store B "
+              "(auto-filled, relevance 0.40)")
+    assert glue == ("Session login guards Grid dashboard.\n\n"
+                    f"{filled}\n"
+                    "- Grid dashboard's tiles call the client\n\n"
+                    "Auto-filled parts supersede any glue above that describes building them "
+                    "differently: Layout store B, Cache box.")
+    assert "layout-config table" not in glue
 
 
 def test_autofill_cap_and_rejections(gridded, tmp_path, monkeypatch):

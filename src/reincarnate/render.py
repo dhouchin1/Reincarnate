@@ -38,6 +38,26 @@ def _caps(caps) -> str:
         if acc:
             out.append("- **Acceptance:**")
             out.extend(f"  - {a}" for a in acc)
+        for sh in c.get("data_shapes") or []:
+            if not isinstance(sh, dict) or not str(sh.get("name") or "").strip():
+                continue
+            out.append(f"- **Data shape `{str(sh['name']).strip()}`:**")
+            for f in sh.get("fields") or []:
+                if isinstance(f, dict) and str(f.get("name") or "").strip():
+                    typ = f" ({str(f['type']).strip()})" if str(f.get("type") or "").strip() else ""
+                    mean = str(f.get("meaning") or "").strip()
+                    out.append(f"  - `{str(f['name']).strip()}`{typ}"
+                               + (f": {mean}" if mean else ""))
+            if str(sh.get("notes") or "").strip():
+                out.append(f"  - _{str(sh['notes']).strip()}_")
+        kvs = [k for k in (c.get("key_values") or [])
+               if isinstance(k, dict) and str(k.get("name") or "").strip()]
+        if kvs:
+            out.append("- **Key values:**")
+            for k in kvs:
+                mean = str(k.get("meaning") or "").strip()
+                out.append(f"  - {str(k['name']).strip()}: `{str(k.get('value') or '').strip()}`"
+                           + (f" - {mean}" if mean else ""))
         if str(c.get("portability_notes") or "").strip():
             out.append(f"- **Portability notes:** {str(c['portability_notes']).strip()}")
         if str(c.get("security_notes") or "").strip():

@@ -53,6 +53,11 @@ _CAP_COLUMNS = (
     ("confidence", "REAL"),
     ("needs_review", "INTEGER DEFAULT 0"),
     ("acceptance_json", "TEXT DEFAULT '[]'"),
+    ("data_shapes_json", "TEXT DEFAULT '[]'"),
+    ("key_values_json", "TEXT DEFAULT '[]'"),
+    ("deepened_at", "TEXT DEFAULT ''"),
+    ("deepened_sha", "TEXT DEFAULT ''"),
+    ("deepened_model", "TEXT DEFAULT ''"),
 )
 NOVELTY = ("commodity", "pattern", "distinctive")
 
@@ -243,14 +248,17 @@ class Store:
                 cur = self.conn.execute(
                     "INSERT INTO capabilities(dossier_id, idx, name, what, files_json, deps_json,"
                     " portability, portability_notes, security_notes, provides_json, requires_json,"
-                    " novelty, acceptance_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " novelty, acceptance_json, data_shapes_json, key_values_json)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (did, i, c["name"], c.get("what", ""), _j(c.get("files") or []),
                      _j(c.get("dependencies") or []), c.get("portability", "medium"),
                      c.get("portability_notes", ""), c.get("security_notes", ""),
                      _j(vocab.canonicalize(interfaces.normalize_list(c.get("provides")))),
                      _j(vocab.canonicalize(interfaces.normalize_list(c.get("requires")))),
                      _novelty(c.get("novelty")),
-                     _j(schema.normalize_acceptance(c.get("acceptance")))))
+                     _j(schema.normalize_acceptance(c.get("acceptance"))),
+                     _j(schema.normalize_data_shapes(c.get("data_shapes"))),
+                     _j(schema.normalize_key_values(c.get("key_values")))))
                 ids.setdefault(c["name"].strip().lower(), cur.lastrowid)
             for f in data.get("fit_to_projects") or []:
                 if not isinstance(f, dict):
@@ -316,6 +324,9 @@ class Store:
             provides=_l(r["provides_json"], []), requires=_l(r["requires_json"], []),
             novelty=r["novelty"] or "", acceptance=_l(r["acceptance_json"], []),
             confidence=r["confidence"], needs_review=bool(r["needs_review"]),
+            data_shapes=_l(r["data_shapes_json"], []), key_values=_l(r["key_values_json"], []),
+            deepened_at=r["deepened_at"] or "", deepened_sha=r["deepened_sha"] or "",
+            deepened_model=r["deepened_model"] or "",
             donor=f"{r['_owner']}/{r['_repo']}", license=r["_license"] or "")
 
     def list_capabilities(self, *, dossier_id: int | None = None,
@@ -339,10 +350,26 @@ class Store:
 
     def set_capability_fields(self, capability_id, *, provides=None, requires=None,
                               novelty=None, confidence=None, needs_review=None,
-                              acceptance=None) -> None:
-        """Update interfaces / novelty / confidence / review flag; tokens are normalized and
-        canonicalized. None = keep (confidence < 0 clears it to NULL)."""
+                              acceptance=None, what=None, data_shapes=None, key_values=None,
+                              deepened=None) -> None:
+        """Update interfaces / novelty / confidence / review flag / behavior text / shapes;
+        tokens are normalized and canonicalized. None = keep (confidence < 0 clears it to NULL).
+        `deepened` is {"at", "sha", "model"}. The FTS index follows `what` via the update
+        trigger."""
         sets, args = [], []
+        if what is not None:
+            sets.append("what=?")
+            args.append(str(what))
+        if data_shapes is not None:
+            sets.append("data_shapes_json=?")
+            args.append(_j(schema.normalize_data_shapes(data_shapes)))
+        if key_values is not None:
+            sets.append("key_values_json=?")
+            args.append(_j(schema.normalize_key_values(key_values)))
+        if deepened is not None:
+            sets.append("deepened_at=?, deepened_sha=?, deepened_model=?")
+            args.extend([str(deepened.get("at", "")), str(deepened.get("sha", "")),
+                         str(deepened.get("model", ""))])
         vocab = self.get_vocabulary() if (provides is not None or requires is not None) else None
         if provides is not None:
             sets.append("provides_json=?")

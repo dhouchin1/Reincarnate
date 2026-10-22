@@ -86,6 +86,11 @@ class Capability(_Base):
     confidence: float | None = None
     needs_review: bool = False
     acceptance: list[str] = field(default_factory=list)
+    data_shapes: list[dict] = field(default_factory=list)
+    key_values: list[dict] = field(default_factory=list)
+    deepened_at: str = ""
+    deepened_sha: str = ""
+    deepened_model: str = ""
 
 
 @dataclass

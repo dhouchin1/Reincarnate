@@ -23,8 +23,13 @@ choice through unchanged.
 ## 2. Export
 
 ```bash
-reincarnate kit <composition id|slug> --into <target> --json
+reincarnate kit <composition id|slug> --into <target> --deepen --json
 ```
+
+`--deepen` first runs a read-only pass over each part's donor code (on the comprehension side
+of the air gap, about $0.02 per part) so every spec carries field-level **Data shapes**,
+**Key values**, and acceptance checks with real numbers. Drop `--deepen` only if the user wants
+an offline export; then report the `warnings` the result carries.
 
 Add `--zip` only if the user asked for an archive. Add `--notes <file>` if the user has a
 markdown file they want as the Glue section instead of the composition's own glue. Read
@@ -42,8 +47,10 @@ CLAUDE.md           ## Stack, ## Dependencies (allowed set + DEPENDENCIES.md rul
                     ## Tests (the test command), ## Clean-room rules
 tasks.md            one checkbox per step; new projects start with "Step 0: scaffold the project"
 specs/00-scaffold.md  new projects only: manifests, skeleton, test runner, smoke tests
-specs/NN-<slug>.md  one clean-room spec per step, each with **Acceptance checks:**; a missing
-                    part the wiring found sits right before the step that needs it
+specs/NN-<slug>.md  one clean-room spec per step: behavior, **Data shapes**, **Key values**,
+                    **Acceptance checks**; a missing part the wiring found sits right before the
+                    step that needs it; `NN-glue-*` steps join parts for glue-only requirements;
+                    steps before the auth step carry a guard-seam note
 run.sh              claude -p driver: builds a step, runs the test command, stops for review
 ```
 

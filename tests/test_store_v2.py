@@ -107,3 +107,71 @@ def test_migrate_adds_confidence_columns(tmp_path):
     cap = s.get_capability(cap.id)
     assert cap.confidence is None and cap.needs_review is False
     s.close()
+
+
+NEW_COLS = {"data_shapes_json", "key_values_json", "deepened_at", "deepened_sha", "deepened_model"}
+
+
+@pytest.mark.skipif(not REAL.exists(), reason="no local real DB")
+def test_migrate_real_db_copy_adds_shape_columns(tmp_path):
+    src = sqlite3.connect(f"file:{REAL}?mode=ro", uri=True)
+    db = tmp_path / "copy.db"
+    dst = sqlite3.connect(db)
+    src.backup(dst)
+    src.close()
+    dst.close()
+    s = Store(db)
+    cols = {r["name"] for r in s.conn.execute("PRAGMA table_info(capabilities)")}
+    assert NEW_COLS <= cols
+    caps = s.list_capabilities(current_only=False)
+    assert caps
+    for c in caps:
+        assert isinstance(c.data_shapes, list) and isinstance(c.key_values, list)
+        assert isinstance(c.deepened_at, str) and isinstance(c.deepened_model, str)
+    s.migrate()  # idempotent
+    s.close()
+
+
+def test_migrate_old_db_adds_shape_columns(tmp_path):
+    db = tmp_path / "old.db"
+    s = Store(db)
+    s.upsert_dossier("o", "r", "u", "s", {"capabilities": [{"name": "a", "what": "w"}]})
+    for col in NEW_COLS:
+        s.conn.execute(f"ALTER TABLE capabilities DROP COLUMN {col}")
+    s.conn.commit()
+    s.close()
+    s = Store(db)
+    c = s.list_capabilities()[0]
+    assert c.data_shapes == [] and c.key_values == [] and c.deepened_at == ""
+    s.close()
+
+
+def test_upsert_round_trips_shapes_and_values(store):
+    store.upsert_dossier("o", "r", "u", "s1", {"capabilities": [
+        {"name": "a", "what": "w",
+         "data_shapes": [{"name": "Board", "fields": [{"name": "apps", "type": "list",
+                                                       "meaning": "tiles"}], "notes": "n"}],
+         "key_values": [{"name": "md", "value": "768px", "meaning": "breakpoint"}]},
+        {"name": "b", "what": "w", "data_shapes": "junk"}]})
+    a, b = store.list_capabilities()
+    assert a.data_shapes[0]["fields"][0] == {"name": "apps", "type": "list", "meaning": "tiles"}
+    assert a.key_values == [{"name": "md", "value": "768px", "meaning": "breakpoint"}]
+    assert b.data_shapes == [] and b.key_values == [] and a.deepened_at == ""
+
+
+def test_set_capability_fields_what_keeps_fts_in_sync(store):
+    store.upsert_dossier("o", "r", "u", "s1", {"capabilities": [
+        {"name": "alpha", "what": "herds zebras"}, {"name": "beta", "what": "other"}]})
+    a, b = store.list_capabilities()
+    store.set_capability_fields(
+        a.id, what="grooms quokkas", data_shapes=[{"name": "S", "fields": []}],
+        key_values=[{"name": "k", "value": "1"}],
+        deepened={"at": "t", "sha": "abc", "model": "m"})
+    assert [c.id for c in store.search_capabilities("quokkas")] == [a.id]
+    assert store.search_capabilities("zebras") == []
+    got = store.get_capability(a.id)
+    assert got.what == "grooms quokkas" and got.data_shapes[0]["name"] == "S"
+    assert (got.deepened_at, got.deepened_sha, got.deepened_model) == ("t", "abc", "m")
+    assert store.get_capability(b.id).what == "other"
+    store.set_capability_fields(a.id, novelty="pattern")  # None fields keep their values
+    assert store.get_capability(a.id).what == "grooms quokkas"

@@ -71,3 +71,37 @@ def test_normalize_new_capability_fields():
 def test_schema_hint_has_new_fields():
     for k in ("provides", "requires", "novelty"):
         assert f'"{k}"' in SCHEMA_HINT
+
+
+def test_normalize_data_shapes_limits_and_bad_input():
+    from reincarnate.schema import normalize_data_shapes as nds
+
+    assert nds(None) == nds("x") == nds({"name": "a"}) == [] and nds([1, "a", {}]) == []
+    shapes = [{"name": f"S{i}", "fields": [{"name": f"f{j}"} for j in range(50)]}
+              for i in range(12)]
+    out = nds(shapes)
+    assert len(out) == 8 and len(out[0]["fields"]) == 40
+    one = nds([{"name": " " + "n" * 200, "notes": "z" * 900, "fields": [
+        {"name": "f", "type": "t" * 200, "meaning": "m" * 500}, {"type": "no name"}, "bad"]}])[0]
+    assert len(one["name"]) == 80 and len(one["notes"]) == 400
+    assert one["fields"] == [{"name": "f", "type": "t" * 80, "meaning": "m" * 240}]
+    assert nds([{"name": "S", "fields": "oops"}]) == [{"name": "S", "fields": [], "notes": ""}]
+
+
+def test_normalize_key_values_limits_and_bad_input():
+    from reincarnate.schema import normalize_key_values as nkv
+
+    assert nkv(None) == nkv("x") == nkv([3, {}, {"name": "only name"}]) == []
+    out = nkv([{"name": f"k{i}", "value": 5, "meaning": "m" * 500} for i in range(30)])
+    assert len(out) == 20 and out[0]["value"] == "5" and len(out[0]["meaning"]) == 240
+    assert len(nkv([{"name": "n" * 200, "value": "v" * 200}])[0]["name"]) == 80
+
+
+def test_normalize_dossier_applies_shapes_and_hint_lists_them():
+    d = normalize_dossier({"summary": "s", "capabilities": [
+        {"name": "a", "data_shapes": [{"name": "Board", "fields": [{"name": "x"}]}],
+         "key_values": [{"name": "bp", "value": "768px"}]}, {"name": "b", "data_shapes": 3}]})
+    a, b = d["capabilities"]
+    assert a["data_shapes"][0]["name"] == "Board" and a["key_values"][0]["value"] == "768px"
+    assert b["data_shapes"] == [] and b["key_values"] == []
+    assert '"data_shapes"' in SCHEMA_HINT and '"key_values"' in SCHEMA_HINT

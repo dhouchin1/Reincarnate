@@ -97,4 +97,6 @@ and risks from its flags. Where a part needs something no other part in the opti
 `pick` pulls in the best catalog candidate (license allowed, non-commodity first) right
 before the part that needs it, and lists it under `proposal.auto_filled`. Needs nothing in the
 catalog covers become build-fresh steps placed before their consumer. Report both lists to
-the user, then continue with `/reincarnate:kit <composition-slug> <target>`.
+the user. Glue lines that described building an auto-filled part differently are replaced, so
+the blueprint stays consistent. Continue with `/reincarnate:kit <composition-slug> <target>`,
+which deepens the parts before exporting.

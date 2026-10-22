@@ -85,10 +85,11 @@ def test_policy_variants_and_ecosystems():
     assert new[1] == ("- Allowed dependencies: the stack below. Any other dependency must be "
                       "small and necessary; before adding it, record its name, version range "
                       "and reason in `DEPENDENCIES.md`. Prefer the standard library.")
-    assert new[2] == "  - Stack: Go" and "step 0" in new[3]
+    assert new[2] == "  - Stack: Go" and "step 0" in new[4]
+    assert new[3] == f"- {salvage.STACK_ITEM_DEPS}" and "a SQLite driver for Drizzle" in new[3]
     assert existing[1].startswith("- Allowed dependencies: the dependencies this project "
                                   "already uses. Any other")
-    assert "`a/b`" in existing[0] and "existing conventions" in existing[2]
+    assert "`a/b`" in existing[0] and "existing conventions" in existing[3]
     assert all("no new third-party" not in x for x in new + existing)
 
 

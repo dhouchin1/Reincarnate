@@ -18,7 +18,11 @@ SCHEMA_HINT = """{
      "provides": ["kind:thing, 0-6 interface tokens this capability offers"],
      "requires": ["kind:thing, 0-6 interface tokens it needs from other parts or the environment"],
      "novelty": "commodity|pattern|distinctive",
-     "acceptance": ["2-4 observable input-to-outcome checks a test can verify; behavior only"]}
+     "acceptance": ["2-4 observable input-to-outcome checks a test can verify; behavior only"],
+     "data_shapes": [{"name": "", "fields": [{"name": "", "type": "", "meaning": ""}],
+                      "notes": "each persisted or exchanged structure, field by field"}],
+     "key_values": [{"name": "", "value": "",
+                     "meaning": "a concrete size, limit, threshold, timeout or format"}]}
   ],
   "dependencies": {"license": "", "notable": [], "supply_chain_flags": []},
   "security": {"concerns": [], "network_egress": "", "dangerous_patterns": []},
@@ -36,6 +40,9 @@ NOVELTY = ("commodity", "pattern", "distinctive")
 MAX_TOKENS = 6
 MAX_ACCEPTANCE = 5
 MAX_ACCEPTANCE_CHARS = 300
+MAX_SHAPES = 8
+MAX_SHAPE_FIELDS = 40
+MAX_KEY_VALUES = 20
 
 
 def _str(v) -> str:
@@ -78,6 +85,57 @@ def normalize_acceptance(v) -> list[str]:
         if t:
             out.append(t)
         if len(out) >= MAX_ACCEPTANCE:
+            break
+    return out
+
+
+def _cap_str(v, n: int) -> str:
+    return _str(v).strip()[:n].strip()
+
+
+def normalize_data_shapes(v) -> list[dict]:
+    """At most MAX_SHAPES named shapes of at most MAX_SHAPE_FIELDS named fields, strings
+    stripped and capped; anything malformed is dropped, non-list -> []."""
+    out: list[dict] = []
+    if not isinstance(v, (list, tuple)):
+        return out
+    for s in v:
+        if not isinstance(s, dict):
+            continue
+        name = _cap_str(s.get("name"), 80)
+        if not name:
+            continue
+        fields = []
+        raw = s.get("fields")
+        for f in raw if isinstance(raw, (list, tuple)) else []:
+            if not isinstance(f, dict):
+                continue
+            fname = _cap_str(f.get("name"), 80)
+            if not fname:
+                continue
+            fields.append({"name": fname, "type": _cap_str(f.get("type"), 80),
+                           "meaning": _cap_str(f.get("meaning"), 240)})
+            if len(fields) >= MAX_SHAPE_FIELDS:
+                break
+        out.append({"name": name, "fields": fields, "notes": _cap_str(s.get("notes"), 400)})
+        if len(out) >= MAX_SHAPES:
+            break
+    return out
+
+
+def normalize_key_values(v) -> list[dict]:
+    """At most MAX_KEY_VALUES entries with a name and a value; non-list -> []."""
+    out: list[dict] = []
+    if not isinstance(v, (list, tuple)):
+        return out
+    for e in v:
+        if not isinstance(e, dict):
+            continue
+        name, value = _cap_str(e.get("name"), 80), _cap_str(e.get("value"), 80)
+        if not name or not value:
+            continue
+        out.append({"name": name, "value": value, "meaning": _cap_str(e.get("meaning"), 240)})
+        if len(out) >= MAX_KEY_VALUES:
             break
     return out
 
@@ -140,6 +198,8 @@ def normalize_dossier(d: dict) -> dict:
         n = _str(c.get("novelty")).strip().lower()
         nc["novelty"] = n if n in NOVELTY else ""
         nc["acceptance"] = normalize_acceptance(c.get("acceptance"))
+        nc["data_shapes"] = normalize_data_shapes(c.get("data_shapes"))
+        nc["key_values"] = normalize_key_values(c.get("key_values"))
         caps.append(nc)
     out["capabilities"] = caps
     fits = []

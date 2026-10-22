@@ -228,6 +228,9 @@ def test_acceptance_checks_in_specs(store, tmp_path, monkeypatch):
     cache = (specs / "02-cache.md").read_text()
     assert "**Acceptance checks:**\n\n(none recorded: write a test for every behavior above " \
            "and list them in your step notes)" in cache
+    # glue rows become their own step; this one names no part, so it goes after the gap
+    glue = (specs / "04-glue-fast.md").read_text()
+    assert "- Satisfies requirement r2: fast" in glue
     gap = (specs / "03-fresh-auth-layer.md").read_text()
     assert "- The behavior above is implemented and covered by tests" in gap
     assert "Covers requirement r2" not in parser

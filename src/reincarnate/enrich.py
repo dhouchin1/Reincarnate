@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from . import claude_runner, interfaces, jev
-from .prompts import ACCEPTANCE_RULES
+from .prompts import CATALOG_ACCEPTANCE_RULES
 
 DEFAULT_MODEL = "claude-haiku-5-5"
 ENGINES = ("haiku", "jev", "jev-sim")
@@ -98,7 +98,7 @@ Canonical vocabulary. Prefer these tokens exactly; coin a new kind:thing token o
         shape["provides"] = ["kind:thing"]
         shape["requires"] = ["kind:thing"]
     if "acceptance" in fields:
-        give.append(ACCEPTANCE_RULES)
+        give.append(CATALOG_ACCEPTANCE_RULES)
         shape["acceptance"] = ["input-to-outcome check"]
     return f"""\
 You are rating entries in a catalog of reusable software capabilities. Work only from the \

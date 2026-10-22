@@ -52,7 +52,13 @@ product.
    passing. Report real pass/fail counts; never claim success on tests you did not run.
 5. **One step at a time, in order.** On a new project, build step 0 (the scaffold) first.
    Build exactly the step you were asked to build. Do not start the next step. Mark the step done in `.reincarnate/tasks.md` only after its tests pass.
-6. **Stop for review.** After each step, summarize what you changed (file paths, test
+6. **Honor the spec's data shapes and key values.** Use the field names, types, and values
+   under **Data shapes:** and **Key values:** exactly; later steps rely on them. If a spec says
+   they are not recorded, define what you need and list it in your step notes.
+7. **Route endpoints through the authorization guard** when a spec has a
+   **Cross-cutting: auth arrives in step N** note: every endpoint and edit action you add calls
+   the one guard function (create it if it does not exist), which allows everything until step N.
+8. **Stop for review.** After each step, summarize what you changed (file paths, test
    results, anything the spec left ambiguous) and wait for the user.
 
 ## When in doubt

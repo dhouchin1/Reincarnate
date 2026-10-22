@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import importlib
 import re
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import paths, salvage
+from . import design, paths, salvage
 from .models import Project
+
+# Glue steps list the kit parts (name + behavior) and glue bullets that overlap the requirement at
+# least this much (the design auto-fill relevance measure).
+GLUE_JOIN_MIN = 0.2
+DEEPEN_MODEL = "claude-haiku-5-5"
+DEEPEN_MAX_TURNS = 25
 
 RUN_SH = r'''#!/usr/bin/env bash
 # Reincarnate kit driver: builds each step with `claude -p`, tests, pauses for review.
@@ -118,9 +125,7 @@ def _coverage_lines(proposal: dict) -> list[str]:
     return rows
 
 
-def _split_steps(cap_rows: list[dict], gaps: list[dict], store, problems: list[str]):
-    """Capability steps in proposal order; a gap with `before_capability_id` goes right before
-    that capability, every other gap after all capability steps."""
+def _cap_steps(cap_rows: list[dict], store, problems: list[str]) -> list[dict]:
     caps = []
     for row in cap_rows:
         cap = store.get_capability(row.get("capability_id"))
@@ -128,7 +133,62 @@ def _split_steps(cap_rows: list[dict], gaps: list[dict], store, problems: list[s
             problems.append(f"capability {row.get('capability_id')} not found; step skipped")
             continue
         caps.append({"kind": "cap", "cap": cap, "role": row.get("role") or ""})
-    kit_ids = {st["cap"].id for st in caps}
+    return caps
+
+
+def _glue_bullets(glue: str) -> list[str]:
+    return [ln.strip()[2:].strip() for ln in str(glue or "").splitlines()
+            if ln.strip().startswith("- ") and ln.strip()[2:].strip()]
+
+
+def _named_in(cap, lines: list[str]) -> bool:
+    """The capability's exact name (case-insensitive) or its `c<id>` appears in a bullet."""
+    name = str(cap.name or "").strip()
+    pat = re.compile(rf"(?<!\w){re.escape(name)}(?!\w)", re.IGNORECASE) if name else None
+    for line in lines:
+        if pat is not None and pat.search(line):
+            return True
+        refs = {int(r[1:]) for m in salvage.CID_REF.finditer(line) for r in m.group(0).split("/")}
+        if cap.id in refs:
+            return True
+    return False
+
+
+def _glue_steps(proposal: dict, caps: list[dict]) -> list[dict]:
+    """One step per `kind == "glue"` coverage row: its requirement and the glue bullets that
+    overlap it (relevance >= GLUE_JOIN_MIN; any shared word pulled unrelated bullets into every
+    step on the homelab design). It joins the kit parts those bullets name (exact name or
+    `c<id>`). When they name none, nothing is joined: word overlap against deepened (long)
+    behavior text tied the alerts requirement to Auth and TOTP on the real data, so overlap
+    matches are only listed as `related` and the step goes last (see `_order_steps`)."""
+    texts = {r.get("id"): str(r.get("text") or "").strip()
+             for r in proposal.get("requirements") or [] if isinstance(r, dict)}
+    bullets = _glue_bullets(proposal.get("glue") or "")
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in proposal.get("coverage") or []:
+        if not isinstance(row, dict) or row.get("kind") != "glue":
+            continue
+        req = str(row.get("req") or "").strip()
+        if req in seen:
+            continue
+        seen.add(req)
+        text = texts.get(req) or req
+        lines = [b for b in bullets if design.text_relevance(b, text) >= GLUE_JOIN_MIN]
+        joins = [st["cap"].id for st in caps if _named_in(st["cap"], lines)]
+        related = [] if joins else [
+            st["cap"].id for st in caps
+            if design.text_relevance(f"{st['cap'].name} {st['cap'].what}", text) >= GLUE_JOIN_MIN]
+        out.append({"kind": "glue", "req": req, "text": text, "joins": joins,
+                    "related": related, "lines": lines})
+    return out
+
+
+def _order_steps(caps: list[dict], gaps: list[dict], glue: list[dict]) -> list[dict]:
+    """Capability steps in proposal order; a gap with `before_capability_id` goes right before
+    that capability; a glue step right after the last part it joins. Then every other gap, then
+    glue steps that join nothing: with no named parts, the safe place is after everything."""
+    kit_ids = [st["cap"].id for st in caps]
     before: dict[int, list[dict]] = {}
     tail: list[dict] = []
     for gap in gaps:
@@ -138,11 +198,64 @@ def _split_steps(cap_rows: list[dict], gaps: list[dict], store, problems: list[s
             before.setdefault(bid, []).append(st)
         else:
             tail.append(st)
+    after: dict[int, list[dict]] = {}
+    loose: list[dict] = []
+    for st in glue:
+        last = max((kit_ids.index(cid) for cid in st["joins"] if cid in kit_ids), default=None)
+        if last is None:
+            loose.append(st)
+        else:
+            after.setdefault(kit_ids[last], []).append(st)
     steps: list[dict] = []
     for st in caps:
         steps += before.pop(st["cap"].id, [])
         steps.append(st)
-    return steps + tail
+        steps += after.pop(st["cap"].id, [])
+    return steps + tail + loose
+
+
+def _provides(cap, prefix: str) -> bool:
+    return any(str(t).startswith(prefix) for t in getattr(cap, "provides", None) or [])
+
+
+def _auth_step(steps: list[dict]) -> dict | None:
+    """The first capability step whose capability provides an `auth:` token."""
+    for st in steps:
+        if st["kind"] == "cap" and _provides(st["cap"], "auth:"):
+            return {"step": st["n"], "name": st["cap"].name}
+    return None
+
+
+def _auth_note(auth: dict) -> str:
+    a = auth["step"]
+    return (f"**Cross-cutting: auth arrives in step {a} ({auth['name']}).** Put every endpoint "
+            "and edit action this step adds behind the authorization guard (create it if it "
+            f"does not exist). It allows everything until step {a}.")
+
+
+def _needs_auth_note(st: dict, auth: dict | None) -> bool:
+    if auth is None or st["n"] >= auth["step"]:
+        return False
+    if st["kind"] == "glue":
+        return True
+    return st["kind"] == "cap" and (_provides(st["cap"], "http:") or _provides(st["cap"], "ui:"))
+
+
+def _not_deepened(steps: list[dict]) -> list[int]:
+    return [st["cap"].id for st in steps
+            if st["kind"] == "cap" and not getattr(st["cap"], "deepened_at", "")]
+
+
+def _run_deepen(store, ids: list[int]) -> dict:
+    """`deepen.deepen` for the kit's parts (imported lazily: the module reads donor source)."""
+    try:
+        mod = importlib.import_module("reincarnate.deepen")
+        return mod.deepen(store, ids, model=getattr(mod, "DEFAULT_MODEL", DEEPEN_MODEL),
+                          max_turns=DEEPEN_MAX_TURNS, force=False)
+    except Exception as e:  # noqa: BLE001 - report, still export the kit
+        return {"capabilities": ids, "deepened": [], "skipped": [], "cost_usd": 0.0,
+                "failed": [{"capability_id": None, "reason": f"deepen failed: {e}"[:300]}],
+                "text": f"deepen failed: {e}"}
 
 
 def _as_int(v):
@@ -200,7 +313,7 @@ def _target_policy(store, composition, proposal, target_dir: Path,
 
 
 def export_kit(store, composition, target, *, zip_it: bool = False,
-               notes: str | None = None) -> dict:
+               notes: str | None = None, deepen: bool = False) -> dict:
     proposal = composition.proposal or {}
     cap_rows = sorted(proposal.get("capabilities") or [], key=lambda r: r.get("order", 0))
     gaps = list(proposal.get("gaps") or [])
@@ -209,12 +322,25 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
 
     target_dir, spec_target, project = _resolve_target(store, target)
     problems: list[str] = []
-    steps = _split_steps(cap_rows, gaps, store, problems)
-    if not steps:
+    caps = _cap_steps(cap_rows, store, problems)
+    if not caps and not gaps:
         raise ValueError("no buildable steps: every referenced capability is missing")
+    deepen_result = None
+    todo = _not_deepened(caps)
+    if deepen and todo:
+        deepen_result = _run_deepen(store, todo)
+        for st in caps:
+            st["cap"] = store.get_capability(st["cap"].id) or st["cap"]
+    steps = _order_steps(caps, gaps, _glue_steps(proposal, caps))
+    warnings: list[str] = []
+    left = len(_not_deepened(caps))
+    if left:
+        warnings.append(f"{left} parts are not deepened: reincarnate deepen --composition "
+                        f"{composition.slug}")
     policy = _target_policy(store, composition, proposal, target_dir, project)
     is_new = policy["kind"] == "new"
     stack, test_cmd = policy["stack"], policy["test_cmd"]
+    ui_tools = salvage.ui_test_tools(stack) if is_new else []
 
     first = 1
     if is_new:
@@ -224,6 +350,8 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
         st["n"] = n
     in_kit = {st["cap"].id: (st["cap"].name, st["n"]) for st in steps if st["kind"] == "cap"}
     resolve = _id_resolver(store, in_kit)
+    auth = _auth_step(steps)
+    noted = [st["n"] for st in steps if _needs_auth_note(st, auth)]
 
     kit_dir = target_dir / ".reincarnate"
     specs_dir = kit_dir / "specs"
@@ -238,7 +366,8 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
         if st["kind"] == "scaffold":
             fname = "00-scaffold.md"
             text = salvage.build_scaffold_spec(stack, test_cmd, policy["ecosystems"],
-                                               target_name=spec_target)
+                                               target_name=spec_target, ui_tools=ui_tools,
+                                               auth=auth)
             tasks.append("- [ ] Step 0: scaffold the project")
             blueprint_steps.append(f"{n}. Step 0 — scaffold the project "
                                    f"({', '.join(stack) or 'stack to be chosen'}; "
@@ -246,13 +375,38 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
         elif st["kind"] == "cap":
             cap = st["cap"]
             fname = f"{n:02d}-{slugify(cap.name)}.md"
+            checks = _cap_checks(cap, proposal)
+            extra: list[str] = []
+            if ui_tools and _provides(cap, "ui:"):
+                checks.append(salvage.COMPONENT_CHECK)
+            if n in noted:
+                extra.append(_auth_note(auth))
+            if auth and n == auth["step"]:
+                extra.append("**Authorization guard:** Wire the authorization guard to this "
+                             "step's identity and roles so every endpoint added before this "
+                             "step is gated.")
+                if noted:
+                    checks.append("An anonymous request to an endpoint added before this step "
+                                  "is rejected")
             text = salvage.build_clean_room_spec(store, cap, target_slug=spec_target,
                                                  project=project, include_header=True,
-                                                 policy=policy,
-                                                 acceptance=_cap_checks(cap, proposal))
+                                                 policy=policy, acceptance=checks,
+                                                 notes=extra)
             tasks.append(f"- [ ] Step {n}: {cap.name} (from {cap.donor})")
             role = f" - {st['role']}" if st["role"] else ""
             blueprint_steps.append(f"{n}. Step {n} — {cap.name} (from {cap.donor}){role}")
+        elif st["kind"] == "glue":
+            fname = f"{n:02d}-glue-{slugify(st['text'])[:40].strip('-') or 'step'}.md"
+            joins = [f"{in_kit[cid][0]} (step {in_kit[cid][1]})" for cid in st["joins"]
+                     if cid in in_kit]
+            related = [f"{in_kit[cid][0]} (step {in_kit[cid][1]})"
+                       for cid in st.get("related") or [] if cid in in_kit]
+            text = salvage.build_glue_spec(st["req"], st["text"], target_slug=spec_target,
+                                           policy=policy, glue_lines=st["lines"], joins=joins,
+                                           related=related,
+                                           notes=[_auth_note(auth)] if n in noted else None)
+            tasks.append(f"- [ ] Step {n}: Glue: {st['text']}")
+            blueprint_steps.append(f"{n}. Step {n} — Glue: {st['text']}")
         else:
             gap = st["gap"]
             need = str(gap.get("need") or "unspecified")
@@ -317,6 +471,8 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
     tests_line = f"Test command: `{test_cmd}`" if test_cmd else "Test command: (none set)"
     if is_new:
         tests_line += " (set in step 0)."
+    if ui_tools:
+        tests_line += "\n\n" + salvage.component_test_line(ui_tools)
     cl = [f"# Building {composition.name}", "", "## Stack", "",
           *([f"- {x}" for x in stack] or ["- (follow the existing project conventions)"]), "",
           "## Dependencies", "", *salvage.dependency_lines(policy), "",
@@ -345,8 +501,11 @@ def export_kit(store, composition, target, *, zip_it: bool = False,
     composition.status = "emitted"
     store.save_composition(composition)
     files = sorted(f.relative_to(kit_dir).as_posix() for f in kit_dir.rglob("*") if f.is_file())
-    return {"kit_dir": str(kit_dir), "files": files, "steps": len(steps), "zip": zip_path,
-            "target": spec_target}
+    out = {"kit_dir": str(kit_dir), "files": files, "steps": len(steps), "zip": zip_path,
+           "target": spec_target, "warnings": warnings}
+    if deepen_result is not None:
+        out["deepen"] = deepen_result
+    return out
 
 
 def run_cli(store, args: Any) -> dict:
@@ -359,6 +518,6 @@ def run_cli(store, args: Any) -> dict:
         notes = Path(notes_file).expanduser().read_text(encoding="utf-8")
     try:
         return export_kit(store, comp, args.into, zip_it=bool(getattr(args, "zip", False)),
-                          notes=notes)
+                          notes=notes, deepen=bool(getattr(args, "deepen", False)))
     except ValueError as e:
         return {"error": str(e)}

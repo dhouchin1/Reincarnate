@@ -307,6 +307,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--review-threshold", type=float, default=0.6,
                    help="jev engines: flag capabilities below this confidence for Tier 3 review")
 
+    p = add("deepen", make_delegate("deepen"),
+            "read donor code for field-level shapes, key values and concrete checks")
+    p.add_argument("ids", nargs="*", type=int, help="capability ids")
+    p.add_argument("--composition", help="deepen every capability in this composition")
+    p.add_argument("--model", default="claude-haiku-5-5")
+    p.add_argument("--max-turns", type=int, default=25)
+    p.add_argument("--force", action="store_true")
+
     p = add("review", make_delegate("review"), "Tier 3: Sonnet review of low-confidence enrichment")
     p.add_argument("--limit", type=int, default=50)
     p.add_argument("--model", default="claude-sonnet-5-5")
@@ -384,6 +392,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--into", required=True, help="dir, project slug, or new:<name>")
     p.add_argument("--zip", action="store_true")
     p.add_argument("--notes", help="markdown file whose text becomes the Glue section")
+    p.add_argument("--deepen", action="store_true",
+                   help="run `deepen` for parts that are not deepened before exporting")
 
     p = add("import-vault", cmd_import_vault, "import second-brain dossier notes")
     p.add_argument("dir")
