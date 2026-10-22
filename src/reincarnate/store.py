@@ -279,16 +279,19 @@ class Store:
         r = self.conn.execute(_CAP_SELECT + " WHERE c.id=?", (capability_id,)).fetchone()
         return self._cap(r) if r else None
 
-    def search_capabilities(self, query: str, *, limit=50) -> list[Capability]:
+    def search_capabilities(self, query: str, *, limit=50, current_only=True) -> list[Capability]:
+        """FTS (or LIKE) search. `current_only` hides capabilities of superseded dossiers,
+        so a repo re-comprehended at a newer SHA does not show up twice."""
         tokens = re.findall(r"\w+", query or "")
         if not tokens:
             return []
+        cur = f" AND {_CURRENT}" if current_only else ""
         if self.fts:
             match = " OR ".join(f'"{t}"*' for t in tokens)
             try:
                 rows = self.conn.execute(
                     _CAP_SELECT + " JOIN capabilities_fts ON capabilities_fts.rowid = c.id"
-                    " WHERE capabilities_fts MATCH ? ORDER BY capabilities_fts.rank LIMIT ?",
+                    f" WHERE capabilities_fts MATCH ?{cur} ORDER BY capabilities_fts.rank LIMIT ?",
                     (match, limit)).fetchall()
                 return [self._cap(r) for r in rows]
             except sqlite3.OperationalError:
@@ -296,7 +299,7 @@ class Store:
         cond = " OR ".join("(c.name LIKE ? OR c.what LIKE ? OR c.portability_notes LIKE ?)"
                            for _ in tokens)
         args = [f"%{t}%" for t in tokens for _ in range(3)]
-        rows = self.conn.execute(_CAP_SELECT + f" WHERE {cond} ORDER BY c.id LIMIT ?",
+        rows = self.conn.execute(_CAP_SELECT + f" WHERE ({cond}){cur} ORDER BY c.id LIMIT ?",
                                  (*args, limit)).fetchall()
         return [self._cap(r) for r in rows]
 

@@ -102,3 +102,14 @@ def test_explicit_db_path(tmp_path):
     s = Store(tmp_path / "sub" / "x.db")
     assert (tmp_path / "sub" / "x.db").exists()
     s.close()
+
+
+def test_search_hides_superseded_dossier(store):
+    """Re-comprehending a repo at a new SHA must not make its capabilities appear twice."""
+    data = {"capabilities": [{"name": "Token signer", "what": "signs tokens",
+                               "portability": "high"}]}
+    store.upsert_dossier("o", "r", "https://github.com/o/r", "aaaa", data)
+    store.upsert_dossier("o", "r", "https://github.com/o/r", "bbbb", data)
+    hits = store.search_capabilities("token")
+    assert len(hits) == 1
+    assert len(store.search_capabilities("token", current_only=False)) == 2
