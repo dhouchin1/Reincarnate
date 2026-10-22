@@ -29,6 +29,7 @@ class CatalogEntry:
     provides: list = field(default_factory=list)
     requires: list = field(default_factory=list)
     novelty: str = ""
+    acceptance: list = field(default_factory=list)
 
     def best_fit(self) -> float:
         return max((f["score"] for f in self.fit), default=0.0)
@@ -70,7 +71,8 @@ def build_catalog(store, *, search=None, portability=None, donor=None, fit=None,
             portability=c.portability, portability_notes=c.portability_notes,
             security_notes=c.security_notes, files=list(c.files),
             dependencies=list(c.dependencies), fit=cfits, vote=vote,
-            provides=list(c.provides), requires=list(c.requires), novelty=c.novelty)
+            provides=list(c.provides), requires=list(c.requires), novelty=c.novelty,
+            acceptance=list(c.acceptance))
         e.score = _entry_score(c.portability, e.best_fit(), vote)
         out.append(e)
     if search:

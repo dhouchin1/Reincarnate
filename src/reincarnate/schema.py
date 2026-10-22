@@ -17,7 +17,8 @@ SCHEMA_HINT = """{
      "portability": "high|medium|low", "portability_notes": "", "security_notes": "",
      "provides": ["kind:thing, 0-6 interface tokens this capability offers"],
      "requires": ["kind:thing, 0-6 interface tokens it needs from other parts or the environment"],
-     "novelty": "commodity|pattern|distinctive"}
+     "novelty": "commodity|pattern|distinctive",
+     "acceptance": ["2-4 observable input-to-outcome checks a test can verify; behavior only"]}
   ],
   "dependencies": {"license": "", "notable": [], "supply_chain_flags": []},
   "security": {"concerns": [], "network_egress": "", "dangerous_patterns": []},
@@ -33,6 +34,8 @@ _CAP_STR = ("name", "what", "portability_notes", "security_notes")
 _CAP_LIST = ("files", "dependencies")
 NOVELTY = ("commodity", "pattern", "distinctive")
 MAX_TOKENS = 6
+MAX_ACCEPTANCE = 5
+MAX_ACCEPTANCE_CHARS = 300
 
 
 def _str(v) -> str:
@@ -61,6 +64,20 @@ def _tokens(v) -> list[str]:
         if t and t not in out:
             out.append(t)
         if len(out) >= MAX_TOKENS:
+            break
+    return out
+
+
+def normalize_acceptance(v) -> list[str]:
+    """Non-empty stripped strings, at most MAX_ACCEPTANCE, each truncated; non-list -> []."""
+    out: list[str] = []
+    if not isinstance(v, (list, tuple)):
+        return out
+    for x in v:
+        t = _str(x).strip()[:MAX_ACCEPTANCE_CHARS].strip()
+        if t:
+            out.append(t)
+        if len(out) >= MAX_ACCEPTANCE:
             break
     return out
 
@@ -122,6 +139,7 @@ def normalize_dossier(d: dict) -> dict:
         nc["requires"] = _tokens(c.get("requires"))
         n = _str(c.get("novelty")).strip().lower()
         nc["novelty"] = n if n in NOVELTY else ""
+        nc["acceptance"] = normalize_acceptance(c.get("acceptance"))
         caps.append(nc)
     out["capabilities"] = caps
     fits = []

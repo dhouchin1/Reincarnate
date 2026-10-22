@@ -189,6 +189,22 @@ def _as_bool(v) -> bool:
     return bool(v)
 
 
+def _cited(raw) -> list[dict]:
+    """A gap's weak catalog matches: [{capability_id, name, donor, relevance}]."""
+    out = []
+    for c in raw if isinstance(raw, list) else []:
+        if not isinstance(c, dict) or _as_int(c.get("capability_id")) is None:
+            continue
+        try:
+            rel = round(float(c.get("relevance") or 0.0), 2)
+        except (TypeError, ValueError):
+            rel = 0.0
+        out.append({"capability_id": _as_int(c["capability_id"]),
+                    "name": _as_str(c.get("name")).strip(),
+                    "donor": _as_str(c.get("donor")).strip(), "relevance": rel})
+    return out
+
+
 def _gaps(raw) -> list[dict]:
     if raw is None or raw == "":
         return []
@@ -201,8 +217,20 @@ def _gaps(raw) -> list[dict]:
             fresh = _as_bool(g.get("build_fresh", not donors))
         else:
             need, donors, fresh = _as_str(g).strip(), [], True
-        if need:
-            out.append({"need": need, "suggested_donors": donors, "build_fresh": fresh})
+        if not need:
+            continue
+        gap = {"need": need, "suggested_donors": donors, "build_fresh": fresh}
+        if isinstance(g, dict):  # design-pick wiring gaps carry their need's structure
+            for k in ("token", "definition"):
+                if g.get(k):
+                    gap[k] = _as_str(g[k]).strip()
+            for k in ("consumer_capability_id", "before_capability_id"):
+                if _as_int(g.get(k)) is not None:
+                    gap[k] = _as_int(g[k])
+            cited = _cited(g.get("candidates"))
+            if cited:
+                gap["candidates"] = cited
+        out.append(gap)
     return out
 
 

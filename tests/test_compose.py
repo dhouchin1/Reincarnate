@@ -391,3 +391,23 @@ def test_license_flags_carry_name_and_dedupe(seeded):
     text = compose.render_text(c)
     assert "o/agpl-repo AGPL-3.0 — Alert router" in text
     assert "o/agpl-repo AGPL-3.0 — Uptime probes" in text
+
+
+def test_gaps_preserve_wiring_keys():
+    out = compose._gaps([
+        {"need": "store:x for Dash", "token": "store:x", "definition": "layout rows",
+         "consumer_capability_id": "7", "before_capability_id": 7,
+         "suggested_donors": [], "build_fresh": True},
+        {"need": "plain", "consumer_capability_id": "nope",
+         "candidates": [{"capability_id": "x"}, "junk"]},
+        {"need": "cited", "candidates": [{"capability_id": "4", "name": "L", "donor": "o/r",
+                                          "relevance": "0.123"}]},
+        "bare text",
+    ])
+    assert out[0] == {"need": "store:x for Dash", "suggested_donors": [], "build_fresh": True,
+                      "token": "store:x", "definition": "layout rows",
+                      "consumer_capability_id": 7, "before_capability_id": 7}
+    assert out[1] == {"need": "plain", "suggested_donors": [], "build_fresh": True}
+    assert out[2]["candidates"] == [{"capability_id": 4, "name": "L", "donor": "o/r",
+                                     "relevance": 0.12}]
+    assert out[3] == {"need": "bare text", "suggested_donors": [], "build_fresh": True}

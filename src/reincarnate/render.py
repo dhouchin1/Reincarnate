@@ -34,6 +34,10 @@ def _caps(caps) -> str:
             out.append("- **Requires:** " + ", ".join(f"`{t}`" for t in c["requires"]))
         if str(c.get("novelty") or "").strip():
             out.append(f"- **Novelty:** {str(c['novelty']).strip()}")
+        acc = [str(a).strip() for a in (c.get("acceptance") or []) if str(a).strip()]
+        if acc:
+            out.append("- **Acceptance:**")
+            out.extend(f"  - {a}" for a in acc)
         if str(c.get("portability_notes") or "").strip():
             out.append(f"- **Portability notes:** {str(c['portability_notes']).strip()}")
         if str(c.get("security_notes") or "").strip():

@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import interfaces, paths
+from . import interfaces, paths, schema
 from .models import Capability, Composition, Design, Dossier, Fit, Profile, Project
 
 SCHEMA = """
@@ -52,6 +52,7 @@ _CAP_COLUMNS = (
     ("novelty", "TEXT DEFAULT ''"),
     ("confidence", "REAL"),
     ("needs_review", "INTEGER DEFAULT 0"),
+    ("acceptance_json", "TEXT DEFAULT '[]'"),
 )
 NOVELTY = ("commodity", "pattern", "distinctive")
 
@@ -242,13 +243,14 @@ class Store:
                 cur = self.conn.execute(
                     "INSERT INTO capabilities(dossier_id, idx, name, what, files_json, deps_json,"
                     " portability, portability_notes, security_notes, provides_json, requires_json,"
-                    " novelty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " novelty, acceptance_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (did, i, c["name"], c.get("what", ""), _j(c.get("files") or []),
                      _j(c.get("dependencies") or []), c.get("portability", "medium"),
                      c.get("portability_notes", ""), c.get("security_notes", ""),
                      _j(vocab.canonicalize(interfaces.normalize_list(c.get("provides")))),
                      _j(vocab.canonicalize(interfaces.normalize_list(c.get("requires")))),
-                     _novelty(c.get("novelty"))))
+                     _novelty(c.get("novelty")),
+                     _j(schema.normalize_acceptance(c.get("acceptance")))))
                 ids.setdefault(c["name"].strip().lower(), cur.lastrowid)
             for f in data.get("fit_to_projects") or []:
                 if not isinstance(f, dict):
@@ -312,7 +314,7 @@ class Store:
             portability_notes=r["portability_notes"] or "",
             security_notes=r["security_notes"] or "",
             provides=_l(r["provides_json"], []), requires=_l(r["requires_json"], []),
-            novelty=r["novelty"] or "",
+            novelty=r["novelty"] or "", acceptance=_l(r["acceptance_json"], []),
             confidence=r["confidence"], needs_review=bool(r["needs_review"]),
             donor=f"{r['_owner']}/{r['_repo']}", license=r["_license"] or "")
 
@@ -336,7 +338,8 @@ class Store:
         return self._cap(r) if r else None
 
     def set_capability_fields(self, capability_id, *, provides=None, requires=None,
-                              novelty=None, confidence=None, needs_review=None) -> None:
+                              novelty=None, confidence=None, needs_review=None,
+                              acceptance=None) -> None:
         """Update interfaces / novelty / confidence / review flag; tokens are normalized and
         canonicalized. None = keep (confidence < 0 clears it to NULL)."""
         sets, args = [], []
@@ -350,6 +353,9 @@ class Store:
         if novelty is not None:
             sets.append("novelty=?")
             args.append(_novelty(novelty))
+        if acceptance is not None:
+            sets.append("acceptance_json=?")
+            args.append(_j(schema.normalize_acceptance(acceptance)))
         if confidence is not None:  # a negative value clears it back to NULL (unrated)
             sets.append("confidence=?")
             args.append(float(confidence) if float(confidence) >= 0 else None)

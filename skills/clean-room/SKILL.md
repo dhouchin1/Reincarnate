@@ -41,15 +41,17 @@ product.
 2. **Match the target's conventions.** Language, formatting, naming, error handling,
    module layout, and test style come from the target project and
    `.reincarnate/CLAUDE.md`, not from the donor.
-3. **No new third-party dependencies** unless the spec explicitly allows them. If you
-   believe one is needed, stop and ask. Standard library and dependencies already in
-   the project are fine.
-4. **Tests are required.** Write tests for every acceptance check in the spec before or
-   alongside the implementation. Run the project's test command (from
-   `.reincarnate/CLAUDE.md`, or ask the user if it is missing). Report real pass/fail
-   counts; never claim success on tests you did not run.
-5. **One step at a time.** Build exactly the step you were asked to build. Do not start
-   the next step. Mark the step done in `.reincarnate/tasks.md` only after its tests pass.
+3. **Dependencies come from the allowed set.** `.reincarnate/CLAUDE.md` lists it under
+   `## Dependencies`: the kit's stack for a new project, or what the project already
+   uses. Any other dependency must be small and necessary. Before adding it, record its
+   name, version range, and reason in `DEPENDENCIES.md` at the project root. Prefer the
+   standard library. Never add a dependency because the donor used it.
+4. **Tests are required.** Write a test for every acceptance check in the spec before or
+   alongside the implementation. Run the test command from `.reincarnate/CLAUDE.md`
+   `## Tests`. On a new project, step 0 sets that command up; every later step keeps it
+   passing. Report real pass/fail counts; never claim success on tests you did not run.
+5. **One step at a time, in order.** On a new project, build step 0 (the scaffold) first.
+   Build exactly the step you were asked to build. Do not start the next step. Mark the step done in `.reincarnate/tasks.md` only after its tests pass.
 6. **Stop for review.** After each step, summarize what you changed (file paths, test
    results, anything the spec left ambiguous) and wait for the user.
 

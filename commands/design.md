@@ -92,6 +92,9 @@ Ask which option to build and where (an existing project slug, or `new:<name>`).
 reincarnate design pick <design-slug> <slot> --target <slug-or-new:name> --json
 ```
 
-This creates a regular composition carrying the option's parts, roles, glue, gaps from the
-net-new work and unmet wiring, and risks from its flags. Continue with
-`/reincarnate:kit <composition-slug> <target>`.
+This creates a regular composition carrying the option's parts, roles, glue, net-new work,
+and risks from its flags. Where a part needs something no other part in the option provides,
+`pick` pulls in the best catalog candidate (license allowed, non-commodity first) right
+before the part that needs it, and lists it under `proposal.auto_filled`. Needs nothing in the
+catalog covers become build-fresh steps placed before their consumer. Report both lists to
+the user, then continue with `/reincarnate:kit <composition-slug> <target>`.

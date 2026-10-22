@@ -16,7 +16,8 @@ _FALLBACK_SCHEMA = """{
      "portability": "high|medium|low", "portability_notes": "", "security_notes": "",
      "provides": ["kind:thing, 0-6 interface tokens this capability offers"],
      "requires": ["kind:thing, 0-6 interface tokens it needs from other parts or the environment"],
-     "novelty": "commodity|pattern|distinctive"}
+     "novelty": "commodity|pattern|distinctive",
+     "acceptance": ["2-4 observable input-to-outcome checks a test can verify; behavior only"]}
   ],
   "dependencies": {"license": "", "notable": [], "supply_chain_flags": []},
   "security": {"concerns": [], "network_egress": "", "dangerous_patterns": []},
@@ -64,6 +65,17 @@ INTERFACE_RULES = (
     "- State the capability keeps for itself goes in provides, not requires.\n"
     "- `ext:` tokens are only ever required, never provided by a capability.\n"
     "- Internal helpers get empty lists."
+)
+
+ACCEPTANCE_RULES = (
+    "For each capability give `acceptance`: 2-4 acceptance checks, each an input-to-outcome "
+    "behavior a test can verify, e.g. \"Given a token signed more than max_age seconds ago, "
+    "verification fails with an expiry error\". No donor code, no file paths, no library "
+    "names.\n"
+    "`what` and `acceptance` describe behavior and never name the donor's third-party libraries "
+    "or frameworks; those belong in `dependencies`. `portability_notes` and `security_notes` "
+    "describe design and risk without citing donor file paths or line numbers; paths belong "
+    "only in `files`."
 )
 
 
@@ -137,7 +149,8 @@ def build_comprehension_prompt(owner: str, repo: str, profile, projects,
         "(eval/exec, shelling out, obfuscation, network egress, unmaintained or sketchy deps).\n"
         "5. Recommend what is worth salvaging and where it fits among the user's projects.\n"
         "6. Rate each capability's novelty and state its interface tokens.\n\n"
-        f"{NOVELTY_RUBRIC}\n\n{INTERFACE_RULES}\n\n{_vocab_text(vocab_block)}"
+        f"{NOVELTY_RUBRIC}\n\n{INTERFACE_RULES}\n\n{ACCEPTANCE_RULES}\n\n"
+        f"{_vocab_text(vocab_block)}"
         "OUTPUT: Your FINAL message must be a SINGLE JSON object inside one ```json fenced code "
         "block and nothing after it. Use exactly this schema (markdown is allowed inside the long "
         "string fields; use [] or \"\" when a field does not apply):\n\n"
@@ -169,7 +182,8 @@ def build_excerpt_prompt(owner: str, repo: str, excerpt_text: str, profile, proj
         "portability (how self-contained the IDEA is) and security. Audit license and "
         "dependencies. Cite real file paths from the excerpt. Do not invent features you did "
         "not see.\n\n"
-        f"{NOVELTY_RUBRIC}\n\n{INTERFACE_RULES}\n\n{_vocab_text(vocab_block)}"
+        f"{NOVELTY_RUBRIC}\n\n{INTERFACE_RULES}\n\n{ACCEPTANCE_RULES}\n\n"
+        f"{_vocab_text(vocab_block)}"
         "Your ENTIRE reply must be one JSON object inside a single ```json fenced code block, "
         "using exactly this schema (use [] or \"\" when a field does not apply):\n\n"
         f"```json\n{_schema_hint()}\n```\n\n"

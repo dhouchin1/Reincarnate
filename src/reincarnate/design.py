@@ -23,7 +23,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from . import compose
+from . import compose, salvage
 from .interfaces import check_wiring
 from .models import Composition, Design
 from .store import now
@@ -186,7 +186,16 @@ def catalog_block(caps: list[dict[str, Any]]) -> str:
     )
 
 
-def compose_prompt(idea: str, n_options: int) -> str:
+def stack_preference(stack) -> str:
+    """The profile stack as the developer's preference ("" when the profile has none)."""
+    items = [str(x).strip() for x in stack or [] if str(x).strip()]
+    if not items:
+        return ""
+    return (f"The developer's preferred stack is {', '.join(items)}: prefer it unless the "
+            "option's nature calls for another stack, and say why in the rationale.\n")
+
+
+def compose_prompt(idea: str, n_options: int, stack=None) -> str:
     slots = SLOTS[:n_options]
     slot_text = "\n".join(f'  - "{s}" ({label}): {desc}' for s, label, desc in slots)
     return (
@@ -197,6 +206,7 @@ def compose_prompt(idea: str, n_options: int) -> str:
         "how elegantly they combine; prefer combinations whose needs are satisfied inside the "
         "option. Options must differ materially in which capabilities they use. Give each a "
         "target stack.\n"
+        + stack_preference(stack) +
         "Step 3: for EACH option label EVERY requirement: \"catalog\" (mainly delivered by one "
         "of THAT option's capabilities; give its id), \"glue\" (integration code between them), "
         "or \"net-new\" (nothing in the option serves it).\n"
@@ -330,33 +340,48 @@ def build_options(obj: dict[str, Any], by_cid: dict[str, dict[str, Any]], n_opti
 
 
 # -- wiring ---------------------------------------------------------------------------------
-def attach_wiring(store, options: list[dict[str, Any]]) -> None:
-    """check_wiring per option against every current capability's interfaces."""
+def _wiring_context(store) -> dict[str, Any]:
+    """Everything check_wiring needs about the current catalog, built once."""
     vocab = store.get_vocabulary()
     catalog = [_row(c) for c in store.list_capabilities(current_only=True)]
-    ifaces = {c["cid"]: (c["provides"], c["requires"]) for c in catalog}
-    rank = {c["cid"]: {"high": 0, "medium": 1, "low": 2}.get(c["portability"], 3)
-            for c in catalog}
-    names = {c["cid"]: {"id": c["cid"], "capability_id": c["capability_id"], "name": c["name"],
-                        "donor": c["donor"]} for c in catalog}
+    return {
+        "vocab": vocab,
+        "rows": {c["cid"]: c for c in catalog},
+        "ifaces": {c["cid"]: (c["provides"], c["requires"]) for c in catalog},
+        "rank": {c["cid"]: {"high": 0, "medium": 1, "low": 2}.get(c["portability"], 3)
+                 for c in catalog},
+        "names": {c["cid"]: {"id": c["cid"], "capability_id": c["capability_id"],
+                             "name": c["name"], "donor": c["donor"]} for c in catalog},
+    }
+
+
+def option_wiring(ctx: dict[str, Any], cids: list[str]) -> dict[str, Any]:
+    """check_wiring for one option's capability ids (`c17`), with refs resolved to names."""
+    names = ctx["names"]
 
     def ref(cid):
         return dict(names.get(cid) or {"id": cid, "capability_id": None, "name": cid,
                                        "donor": ""})
 
+    w = check_wiring(cids, ctx["ifaces"], platform=ctx["vocab"].platform,
+                     rank=ctx["rank"]).as_dict()
+    for k in _WIRING_KINDS[:-1]:
+        for item in w[k]:
+            item["consumer"] = ref(item["consumer"])
+            if "provider" in item:
+                item["provider"] = ref(item["provider"])
+            if "candidates" in item:
+                item["candidates"] = [ref(c) for c in item["candidates"] if c in names]
+    w["unknown"] = [ref(c) for c in w["unknown"]]
+    w["verified"] = False
+    return w
+
+
+def attach_wiring(store, options: list[dict[str, Any]]) -> None:
+    """check_wiring per option against every current capability's interfaces."""
+    ctx = _wiring_context(store)
     for o in options:
-        w = check_wiring([c["id"] for c in o["capabilities"]], ifaces,
-                         platform=vocab.platform, rank=rank).as_dict()
-        for k in _WIRING_KINDS[:-1]:
-            for item in w[k]:
-                item["consumer"] = ref(item["consumer"])
-                if "provider" in item:
-                    item["provider"] = ref(item["provider"])
-                if "candidates" in item:
-                    item["candidates"] = [ref(c) for c in item["candidates"] if c in names]
-        w["unknown"] = [ref(c) for c in w["unknown"]]
-        w["verified"] = False
-        o["wiring"] = w
+        o["wiring"] = option_wiring(ctx, [c["id"] for c in o["capabilities"]])
 
 
 def _recount(w: dict[str, Any]) -> None:
@@ -447,10 +472,11 @@ def offline_design(idea: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
                         option("complete", "Complete build", rows[:OFFLINE_COMPLETE])]}
 
 
-def _claude_design(idea, rows, n_options, model) -> tuple[dict[str, Any], float]:
+def _claude_design(idea, rows, n_options, model, stack=None) -> tuple[dict[str, Any], float]:
     from . import claude_runner
 
-    prompt = f"{SYSTEM}\n\n{catalog_block(rows)}\n\n{compose_prompt(idea, n_options)}"
+    prompt = (f"{SYSTEM}\n\n{catalog_block(rows)}\n\n"
+              f"{compose_prompt(idea, n_options, stack)}")
     res = claude_runner.run(prompt, cwd=Path.cwd(), model=model or DESIGN_MODEL, max_turns=1,
                             tools="")
     obj = compose.extract_json_object(res.text)
@@ -493,7 +519,9 @@ def propose_design(store, idea, *, n_options=3, engine="claude-p", proposal_path
         raise ValueError(f"unknown engine: {engine}")
     rows = [catalog[f"c{c.id}"] for c in caps]
     if engine == "claude-p":
-        obj, cost = _claude_design(idea, rows, n_options, model)
+        prof = store.get_profile()
+        obj, cost = _claude_design(idea, rows, n_options, model,
+                                   list(prof.stack) if prof else None)
     elif engine == "offline":
         obj = offline_design(idea, rows)
     by_cid = {r["cid"]: r for r in rows}
@@ -530,28 +558,168 @@ def find_option(design: Design, option_ref: str) -> dict[str, Any] | None:
     return None
 
 
-def _glue_markdown(opt: dict[str, Any]) -> str:
+MAX_AUTOFILL = 4
+AUTOFILL_PASSES = 2
+# Calibrated on the real catalog (2026-10-22, overlap / min): the weak other-donor candidates
+# for the homelab dashboard scored 0.06-0.18, so relevance alone must clear 0.30.
+RELEVANCE_MIN = 0.30
+MAX_CITED = 3
+
+
+def _resolve_ids(text: str, names: dict[str, str]) -> str:
+    """`c17` -> the capability's name (unknown ids are left as they are)."""
+    return salvage.resolve_cids(text, lambda cid: names.get(f"c{cid}"))
+
+
+def _glue_markdown(opt: dict[str, Any], names: dict[str, str] | None = None) -> str:
     parts = []
     if opt.get("rationale"):
         parts.append(opt["rationale"])
     if opt.get("glue"):
         parts.append("\n".join(f"- {g}" for g in opt["glue"]))
-    return "\n\n".join(parts)
+    return _resolve_ids("\n\n".join(parts), names or {})
 
 
-def _pick_gaps(opt: dict[str, Any]) -> list[dict[str, Any]]:
+def _rejections(w: dict[str, Any]) -> set[tuple[str, str, str]]:
+    return {(u.get("token"), (u.get("consumer") or {}).get("id"),
+             (u.get("rejected_provider") or {}).get("id"))
+            for u in w.get("unmet") or [] if u.get("rejected_provider")}
+
+
+def _reapply_rejections(w: dict[str, Any], rejected: set[tuple[str, str, str]]) -> None:
+    """Links the verifier rejected stay unmet when wiring is recomputed."""
+    keep = []
+    for link in w["wired"]:
+        key = (link["token"], link["consumer"]["id"], link["provider"]["id"])
+        if key in rejected:
+            w["unmet"].append({"token": link["token"], "consumer": link["consumer"],
+                               "candidates": [], "rejected_provider": link["provider"]})
+        else:
+            keep.append(link)
+    w["wired"] = keep
+    _recount(w)
+
+
+def relevance(candidate: dict[str, Any], consumer: dict[str, Any], token: str,
+              definition: str = "") -> float:
+    """Content-word overlap between the candidate (name + what) and the need (consumer name +
+    what, the token's thing words, its vocabulary definition), over the smaller set: 0..1."""
+    cand = set(_words(f"{candidate.get('name', '')} {candidate.get('what', '')}"))
+    thing = token.split(":", 1)[-1]
+    need = set(_words(f"{consumer.get('name', '')} {consumer.get('what', '')} {thing} "
+                      f"{definition}"))
+    if not cand or not need:
+        return 0.0
+    return round(len(cand & need) / min(len(cand), len(need)), 2)
+
+
+def rank_candidates(ctx: dict[str, Any], need: dict[str, Any], profile) -> list[dict[str, Any]]:
+    """An unmet need's catalog candidates, best first: same donor as the consumer, then
+    relevance, then the wiring rank. Each: {cid, capability_id, name, donor, relevance,
+    same_donor, deny}."""
+    rows = ctx["rows"]
+    token = str(need.get("token") or "")
+    consumer = rows.get((need.get("consumer") or {}).get("id")) or {}
+    definition = str(ctx["vocab"].tokens.get(token, {}).get("definition") or "")
+    out = []
+    for i, c in enumerate(need.get("candidates") or []):
+        r = rows.get(c.get("id"))
+        if r is None:
+            continue
+        out.append({"cid": r["cid"], "capability_id": r["capability_id"], "name": r["name"],
+                    "donor": r["donor"],
+                    "relevance": relevance(r, consumer, token, definition),
+                    "same_donor": bool(consumer) and r["donor"] == consumer.get("donor"),
+                    "deny": compose.license_level(r["license"], profile) == "deny",
+                    "_key": (ctx["rank"].get(r["cid"], 99), i)})
+    out.sort(key=lambda c: (not c["same_donor"], -c["relevance"], c["_key"]))
+    for c in out:
+        del c["_key"]
+    return out
+
+
+def _fill_choice(ranked: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, str]:
+    """The candidate to auto-fill and why, or (None, "") when none passes the gate. Denied
+    licenses are never auto-filled."""
+    allowed = [c for c in ranked if not c["deny"]]
+    if not allowed:
+        return None, ""
+    top = allowed[0]
+    if top["same_donor"]:
+        return top, "same donor"
+    if top["relevance"] >= RELEVANCE_MIN:
+        return top, f"relevance {top['relevance']:.2f}"
+    return None, ""
+
+
+def autofill(ctx: dict[str, Any], opt: dict[str, Any], profile):
+    """Pull the best catalog candidate for each unmet need into the option, right before its
+    consumer, when it is from the consumer's donor or relevant enough.
+    -> (capabilities, auto_filled, wiring)."""
+    caps = [dict(c) for c in opt.get("capabilities") or []]
+    w = opt.get("wiring") or option_wiring(ctx, [c["id"] for c in caps])
+    rejected = _rejections(w)
+    rows = ctx["rows"]
+    filled: list[dict[str, Any]] = []
+    for _ in range(AUTOFILL_PASSES):
+        added = False
+        for u in w.get("unmet") or []:
+            if len(filled) >= MAX_AUTOFILL:
+                break
+            cands = [c for c in u.get("candidates") or [] if c.get("id") in rows]
+            have = {c["id"] for c in caps}
+            if not cands or u.get("rejected_provider") or any(c["id"] in have for c in cands):
+                continue
+            choice, reason = _fill_choice(rank_candidates(ctx, u, profile))
+            if choice is None:
+                continue
+            best = rows[choice["cid"]]
+            consumer = u.get("consumer") or {}
+            cname = consumer.get("name") or consumer.get("id") or "?"
+            pos = next((i for i, c in enumerate(caps) if c["id"] == consumer.get("id")),
+                       len(caps))
+            caps.insert(pos, {
+                "id": best["cid"], "capability_id": best["capability_id"], "name": best["name"],
+                "donor": best["donor"], "license": best["license"],
+                "portability": best["portability"], "novelty": best["novelty"],
+                "what": best["what"], "role": f"provides `{u['token']}` for {cname}",
+                "provides": best["provides"], "requires": best["requires"],
+            })
+            filled.append({"token": u["token"], "consumer": cname,
+                           "capability_id": best["capability_id"], "name": best["name"],
+                           "donor": best["donor"], "reason": reason})
+            added = True
+        if not added:
+            break
+        w = option_wiring(ctx, [c["id"] for c in caps])
+        _reapply_rejections(w, rejected)
+    return caps, filled, w
+
+
+def _pick_gaps(opt: dict[str, Any], wiring: dict[str, Any], ctx: dict[str, Any],
+               profile) -> list[dict[str, Any]]:
+    vocab = ctx["vocab"]
     gaps = [{"need": str(x), "suggested_donors": [], "build_fresh": True}
             for x in opt.get("new_work") or [] if str(x).strip()]
-    for u in (opt.get("wiring") or {}).get("unmet") or []:
+    for u in wiring.get("unmet") or []:
         consumer = u.get("consumer") or {}
         cname = consumer.get("name") if isinstance(consumer, dict) else str(consumer)
+        cid = consumer.get("capability_id") if isinstance(consumer, dict) else None
         donors: list[str] = []
         for c in u.get("candidates") or []:
             dn = c.get("donor") if isinstance(c, dict) else ""
             if dn and dn not in donors:
                 donors.append(dn)
-        gaps.append({"need": f"{u.get('token')} for {cname}", "suggested_donors": donors,
-                     "build_fresh": not u.get("candidates")})
+        token = str(u.get("token") or "")
+        cited = [{k: c[k] for k in ("capability_id", "name", "donor", "relevance")}
+                 for c in rank_candidates(ctx, u, profile)[:MAX_CITED]]
+        gap = {"need": f"{token} for {cname}", "token": token,
+               "definition": str(vocab.tokens.get(token, {}).get("definition") or ""),
+               "consumer_capability_id": cid, "before_capability_id": cid,
+               "suggested_donors": donors, "build_fresh": True}
+        if cited:
+            gap["candidates"] = cited
+        gaps.append(gap)
     return gaps
 
 
@@ -563,23 +731,27 @@ def pick(store, design_ref, option_ref, *, target=None) -> Composition:
     if opt is None:
         have = ", ".join(f"{o.get('slot')}/{o.get('slug')}" for o in design.options)
         raise ValueError(f"no option {option_ref} in design {design.slug} (have: {have})")
+    profile = store.get_profile()
+    ctx = _wiring_context(store)
+    caps, filled, wiring = autofill(ctx, opt, profile)
     rows = []
-    for c in opt.get("capabilities") or []:
+    for c in caps:
         cap = store.get_capability(c.get("capability_id"))
         if cap is not None:
             rows.append(compose._cap_row(cap, {}))
+    names = {cid: n["name"] for cid, n in ctx["names"].items()}
+    names.update({c["id"]: c["name"] for c in caps if c.get("id")})
     raw = {
         "name": opt.get("name"),
         "capabilities": [{"capability_id": c.get("capability_id"),
                           "role": c.get("role") or "component", "order": n}
-                         for n, c in enumerate(opt.get("capabilities") or [], start=1)],
-        "glue": _glue_markdown(opt),
-        "gaps": _pick_gaps(opt),
+                         for n, c in enumerate(caps, start=1)],
+        "glue": _glue_markdown(opt, names),
+        "gaps": _pick_gaps(opt, wiring, ctx, profile),
         "risks": list(opt.get("flags") or []),
     }
     slug = compose.unique_slug(store, compose.slug_base(opt.get("name"), design.idea))
-    proposal, _ = compose.validate_proposal(store, raw, rows, store.get_profile(),
-                                            target=target, slug=slug)
+    proposal, _ = compose.validate_proposal(store, raw, rows, profile, target=target, slug=slug)
     proposal.update({
         "engine": "design",
         "design_slug": design.slug,
@@ -587,7 +759,8 @@ def pick(store, design_ref, option_ref, *, target=None) -> Composition:
         "option_slug": opt.get("slug"),
         "stack": opt.get("stack") or "",
         "scores": opt.get("scores") or {},
-        "wiring": opt.get("wiring") or {},
+        "wiring": wiring,
+        "auto_filled": filled,
         "coverage": opt.get("coverage") or [],
         "requirements": design.requirements,
     })

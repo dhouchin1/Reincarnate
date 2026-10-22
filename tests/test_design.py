@@ -1,6 +1,7 @@
 import json
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -152,6 +153,9 @@ def test_catalog_block_and_prompt(seeded):
     assert "needs: auth:session, store:board-layout" in block
     assert "secret/x.py" not in block
     prompt = design.compose_prompt(IDEA, 2)
+    assert "preferred stack" not in prompt
+    assert "preferred stack is python, fastapi:" in design.compose_prompt(IDEA, 2,
+                                                                         ["python", "fastapi"])
     assert '"lean"' in prompt and '"complete"' in prompt and '"bold"' not in prompt
     assert "Reincarnate's designer" in design.SYSTEM and "glue" in design.SYSTEM
 
@@ -271,6 +275,8 @@ def test_claude_p_with_verification(seeded, monkeypatch):
         assert argv[argv.index("--max-turns") + 1] == "1"
         assert "--strict-mcp-config" in argv
     prompt = first[first.index("-p") + 1]
+    assert ("The developer's preferred stack is python: prefer it unless the option's nature "
+            "calls for another stack, and say why in the rationale.") in prompt
     assert "CAPABILITY CATALOG" in prompt and "Retry helper" not in prompt
     assert "L0: Team dashboard" in second[second.index("-p") + 1]
     w = d.options[0]["wiring"]
@@ -356,20 +362,29 @@ def test_pick_builds_composition_and_kit(seeded, tmp_path):
     p = c.proposal
     assert c.name == "Board Lite" and c.target_kind == "existing" and c.target_slug == "homelab"
     assert seeded.get_composition(c.slug) is not None
-    assert [x["name"] for x in p["capabilities"]] == ["Session login", "Team dashboard"]
+    # the dashboard's unmet store:board-layout pulled Layout grid in, right before it
+    assert [x["name"] for x in p["capabilities"]] == ["Session login", "Layout grid",
+                                                      "Team dashboard"]
+    assert p["capabilities"][1]["role"] == "provides `store:board-layout` for Team dashboard"
+    assert p["auto_filled"] == [{"token": "store:board-layout", "consumer": "Team dashboard",
+                                 "capability_id": ids["Layout grid"], "name": "Layout grid",
+                                 "donor": "acme/boards", "reason": "same donor"}]
+    assert ("Team dashboard", "store:board-layout", "Layout grid") in {
+        (w["consumer"]["name"], w["token"], w["provider"]["name"]) for w in p["wiring"]["wired"]}
+    assert p["wiring"]["unmet"] == [] and p["wiring"]["counts"]["unmet"] == 0
     assert p["capabilities"][0] == {"capability_id": ids["Session login"], "role": "auth",
                                     "order": 1, "name": "Session login", "donor": "acme/authkit",
                                     "license": "MIT", "portability": "low"}
     assert p["glue"].startswith("login feeds the dashboard") and "- session middleware" in p["glue"]
     assert {"need": "email alerts", "suggested_donors": [], "build_fresh": True} in p["gaps"]
-    assert {"need": "store:board-layout for Team dashboard", "suggested_donors": ["acme/boards"],
-            "build_fresh": False} in p["gaps"]
+    assert p["gaps"] == [{"need": "email alerts", "suggested_donors": [], "build_fresh": True}]
+    assert p["stack"] == "Python + SQLite"
     assert p["wiring"] and p["coverage"] and p["requirements"] == d.requirements
     assert p["design_slug"] == d.slug and p["slot"] == "lean" and p["license_flags"] == []
 
     out = kit.export_kit(seeded, c, "new:boardlite")
     text = (paths.data_dir() / "new" / "boardlite" / ".reincarnate" / "BLUEPRINT.md").read_text()
-    assert out["steps"] == 4
+    assert out["steps"] == 5  # scaffold + 3 capabilities + 1 gap
     assert "## Wiring" in text and "## Requirement coverage" in text
     assert "Team dashboard needs `auth:session` from Session login" in text
     assert "| r1: users sign in | catalog | Session login |" in text
@@ -439,3 +454,174 @@ def test_cli_shortlist_names_resolve_to_clients(store, monkeypatch, capsys):
     rc = cli.main(["design", "dashboard", "--engine", "offline", "--shortlist", "jev", "--json"])
     out = capsys.readouterr().out
     assert rc == 0 and "TYPESAFE_API_KEY" in out
+
+
+# -- auto-fill ----------------------------------------------------------------------------
+@pytest.fixture
+def gridded(seeded):
+    seeded.upsert_dossier("grids", "agplgrid", "https://github.com/grids/agplgrid", "g1",
+                          _dossier("AGPL-3.0", [_cap("Layout store A", "persists tile layouts",
+                                                     "high",
+                                                     provides=["store:layout-config"])]))
+    seeded.upsert_dossier("grids", "mitgrid", "https://github.com/grids/mitgrid", "g2",
+                          _dossier("MIT", [_cap("Layout store B", "persists tile layouts",
+                                                "medium", provides=["store:layout-config"],
+                                                requires=["store:cache"]),
+                                           _cap("Cache box", "keyed value cache",
+                                                provides=["store:cache"])]))
+    seeded.upsert_dossier("acme", "widgets", "https://github.com/acme/widgets", "w1",
+                          _dossier("MIT", [_cap("Grid dashboard", "tiles users arrange",
+                                                provides=["ui:grid-dashboard"],
+                                                requires=["store:layout-config",
+                                                          "http:outbound-client",
+                                                          "auth:session"])]))
+    return seeded
+
+
+def _grid_design(store, tmp_path):
+    ids = _ids(store)
+    dash, login = f"c{ids['Grid dashboard']}", f"c{ids['Session login']}"
+    p = tmp_path / "grid.json"
+    p.write_text(json.dumps({
+        "title": "Grid", "requirements": [{"id": "r1", "text": "arrange tiles"}],
+        "options": [{"slot": "lean", "name": "Grid Lite", "pitch": "p", "stack": "Python",
+                     "rationale": f"{login} guards {dash}.",
+                     "capabilities": [{"id": login, "role": "auth"},
+                                      {"id": dash, "role": "ui"}],
+                     "coverage": [{"req": "r1", "kind": "catalog", "cap": dash}],
+                     "glue": [f"{dash}'s tiles call the client"], "new_work": ["audit log"]}]}))
+    return design.propose_design(store, "grid", engine="session", proposal_path=str(p),
+                                 verify=False), ids
+
+
+def test_pick_autofills_and_structures_gaps(gridded, tmp_path):
+    d, ids = _grid_design(gridded, tmp_path)
+    c = design.pick(gridded, d.slug, "lean", target="new:grid")
+    p = c.proposal
+    assert [x["name"] for x in p["capabilities"]] == [
+        "Session login", "Cache box", "Layout store B", "Grid dashboard"]
+    assert p["auto_filled"] == [
+        {"token": "store:layout-config", "consumer": "Grid dashboard",
+         "capability_id": ids["Layout store B"], "name": "Layout store B",
+         "donor": "grids/mitgrid", "reason": "relevance 0.40"},  # AGPL "A" ranks first: denied
+        {"token": "store:cache", "consumer": "Layout store B", "capability_id": ids["Cache box"],
+         "name": "Cache box", "donor": "grids/mitgrid", "reason": "same donor"}]
+    assert [u["token"] for u in p["wiring"]["unmet"]] == ["http:outbound-client"]
+    assert p["license_flags"] == [] and p["stack"] == "Python"
+    definition = gridded.get_vocabulary().tokens["http:outbound-client"]["definition"]
+    assert p["gaps"] == [
+        {"need": "audit log", "suggested_donors": [], "build_fresh": True},
+        {"need": "http:outbound-client for Grid dashboard", "suggested_donors": [],
+         "build_fresh": True, "token": "http:outbound-client", "definition": definition,
+         "consumer_capability_id": ids["Grid dashboard"],
+         "before_capability_id": ids["Grid dashboard"]}]
+    assert p["glue"] == ("Session login guards Grid dashboard.\n\n"
+                         "- Grid dashboard's tiles call the client")
+
+    kit.export_kit(gridded, c, "new:grid")
+    kd = paths.data_dir() / "new" / "grid" / ".reincarnate"
+    assert sorted(f.name for f in (kd / "specs").iterdir()) == [
+        "00-scaffold.md", "01-session-login.md", "02-cache-box.md", "03-layout-store-b.md",
+        "04-fresh-http-outbound-client-for-grid-dashboard.md", "05-grid-dashboard.md",
+        "06-fresh-audit-log.md"]
+    spec = (kd / "specs" / "04-fresh-http-outbound-client-for-grid-dashboard.md").read_text()
+    assert spec.startswith("## Build fresh: `http:outbound-client` for Grid dashboard\n")
+    assert f"`http:outbound-client`: {definition}" in spec
+    assert "Consumed by Grid dashboard (step 5): tiles users arrange" in spec
+    assert "- Provides `http:outbound-client` as defined above" in spec
+    assert ("- Grid dashboard (step 5) can use this step's `http:outbound-client` without a "
+            "stub of its own") in spec
+    dash = (kd / "specs" / "05-grid-dashboard.md").read_text()
+    assert "- Covers requirement r1: arrange tiles" in dash
+    bp = (kd / "BLUEPRINT.md").read_text()
+    assert "Session login guards Grid dashboard." in bp
+
+
+def test_autofill_cap_and_rejections(gridded, tmp_path, monkeypatch):
+    d, ids = _grid_design(gridded, tmp_path)
+    monkeypatch.setattr(design, "MAX_AUTOFILL", 1)
+    p = design.pick(gridded, d.slug, "lean").proposal
+    assert [x["name"] for x in p["auto_filled"]] == ["Layout store B"]
+    need = next(g for g in p["gaps"] if g.get("token") == "store:cache")
+    assert need["suggested_donors"] == ["grids/mitgrid"] and need["build_fresh"] is True
+    assert need["before_capability_id"] == ids["Layout store B"]
+
+    # a link the verifier rejected stays unmet after the recompute
+    monkeypatch.setattr(design, "MAX_AUTOFILL", 4)
+    opt = d.options[0]
+    link = next(w for w in opt["wiring"]["wired"] if w["token"] == "auth:session")
+    opt["wiring"]["wired"].remove(link)
+    opt["wiring"]["unmet"].append({"token": "auth:session", "consumer": link["consumer"],
+                                   "candidates": [], "rejected_provider": link["provider"]})
+    gridded.save_design(d)
+    p = design.pick(gridded, d.slug, "lean").proposal
+    assert len(p["auto_filled"]) == 2
+    assert "auth:session" in [u["token"] for u in p["wiring"]["unmet"]]
+    assert "auth:session" not in [w["token"] for w in p["wiring"]["wired"]]
+
+
+def _need_store(store, consumer, providers):
+    """A store whose `consumer` (name, what, donor) needs `data:feed`; providers are
+    (name, what, donor, license) tuples."""
+    store.save_profile(Profile(name="dan", stack=["python"],
+                               license_policy={"deny": ["AGPL-3.0"], "warn": ["unknown"]}))
+    cname, cwhat, cdonor = consumer
+    by_donor: dict[str, list] = {cdonor: [_cap(cname, cwhat, requires=["data:feed"],
+                                               provides=["ui:reader"])]}
+    lic = {cdonor: "MIT"}
+    for name, what, donor, license_ in providers:
+        by_donor.setdefault(donor, []).append(_cap(name, what, "high", provides=["data:feed"]))
+        lic[donor] = license_
+    by_donor[cdonor].append(_cap("Filler", "unrelated filler part", provides=["ui:filler"]))
+    for donor, caps in by_donor.items():
+        owner, repo = donor.split("/")
+        store.upsert_dossier(owner, repo, f"https://github.com/{donor}", "s", _dossier(
+            lic[donor], caps))
+    ids = _ids(store)
+    p = Path(str(paths.data_dir())) / "feed.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"title": "Feed", "requirements": [{"id": "r1", "text": "read"}],
+                             "options": [{"slot": "lean", "name": "Reader", "stack": "Python",
+                                          "capabilities": [{"id": f"c{ids[cname]}"},
+                                                           {"id": f"c{ids['Filler']}"}]}]}))
+    d = design.propose_design(store, "feed reader", engine="session", proposal_path=str(p),
+                              verify=False)
+    return design.pick(store, d.slug, "lean", target="new:feed").proposal, ids
+
+
+def test_same_donor_beats_more_relevant_candidate(store):
+    p, ids = _need_store(store, ("News reader", "reads rss news feed items", "me/reader"), [
+        ("Feed parser", "parses rss news feed items into entries", "other/feeds", "MIT"),
+        ("Odd helper", "misc plumbing", "me/reader", "MIT")])
+    assert [(a["name"], a["reason"]) for a in p["auto_filled"]] == [("Odd helper", "same donor")]
+
+
+def test_weak_candidate_becomes_gap_with_citations(store):
+    p, ids = _need_store(store, ("News reader", "reads rss news feed items", "me/reader"), [
+        ("Ledger", "double entry accounting", "other/books", "MIT")])
+    assert p["auto_filled"] == []
+    gap = next(g for g in p["gaps"] if g.get("token") == "data:feed")
+    assert gap["candidates"] == [{"capability_id": ids["Ledger"], "name": "Ledger",
+                                  "donor": "other/books", "relevance": 0.0}]
+    comp = store.get_composition(store.list_compositions()[-1].slug)
+    kit.export_kit(store, comp, "new:feed")
+    spec = next((paths.data_dir() / "new" / "feed" / ".reincarnate" / "specs").glob(
+        "*-fresh-data-feed-*.md")).read_text()
+    assert ("**Catalog parts that also provide this (weak matches, not used):**\n\n"
+            "- Ledger (other/books, relevance 0.00)") in spec
+
+
+def test_denied_license_never_autofilled(store):
+    p, ids = _need_store(store, ("News reader", "reads rss news feed items", "me/reader"), [
+        ("Feed parser", "parses rss news feed items into entries", "other/feeds", "AGPL-3.0")])
+    assert p["auto_filled"] == []
+    gap = next(g for g in p["gaps"] if g.get("token") == "data:feed")
+    assert [c["name"] for c in gap["candidates"]] == ["Feed parser"]  # cited, not used
+    assert gap["candidates"][0]["relevance"] >= design.RELEVANCE_MIN
+
+
+def test_relevance_score():
+    cand = {"name": "Feed parser", "what": "parses rss feed items"}
+    consumer = {"name": "Reader", "what": "reads rss feed items"}
+    assert design.relevance(cand, consumer, "data:feed") == 0.6  # {rss, feed, items} / min(5, 5)
+    assert design.relevance({"name": "", "what": ""}, consumer, "data:feed") == 0.0

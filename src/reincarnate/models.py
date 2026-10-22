@@ -85,6 +85,7 @@ class Capability(_Base):
     novelty: str = ""
     confidence: float | None = None
     needs_review: bool = False
+    acceptance: list[str] = field(default_factory=list)
 
 
 @dataclass

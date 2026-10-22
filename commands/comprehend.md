@@ -93,7 +93,8 @@ Produce **exactly** this schema (keys as shown; `portability` is `high`, `medium
     {"name": "", "what": "", "files": [], "dependencies": [],
      "portability": "high|medium|low", "portability_notes": "", "security_notes": "",
      "provides": ["kind:thing"], "requires": ["kind:thing"],
-     "novelty": "commodity|pattern|distinctive"}
+     "novelty": "commodity|pattern|distinctive",
+     "acceptance": ["observable check a test can verify"]}
   ],
   "dependencies": {"license": "", "notable": [], "supply_chain_flags": []},
   "security": {"concerns": [], "network_egress": "", "dangerous_patterns": []},
@@ -122,6 +123,10 @@ Guidance per field:
   - `distinctive`: non-obvious behavior an agent would not invent unprompted; the reason to
     reincarnate.
   Be strict: most capabilities in most repos are `commodity` or `pattern`.
+- `acceptance`: 2-4 checks, each an input-to-outcome behavior a test can verify ("Given a token signed more than max_age seconds ago, verification fails with an expiry error"). No donor
+  code, no file paths, no library names.
+- `what` and `acceptance` describe behavior and never name the donor's third-party libraries
+  or frameworks; those go in `dependencies`.
 - `fit_to_projects[].capability` must match a capability `name` exactly.
 - `salvage_recommendations`: the capabilities you would rebuild first, in order, as short strings.
 

@@ -364,3 +364,108 @@ reincarnate design pick <slug> <slot|option-slug> [--target <slug>|new:<name>]
   judges useful for the idea (noul P >= 0.5, at most 40) before the Opus call.
 - `reincarnate jev status|models`, `reincarnate catalog --needs-review`.
 
+
+---
+
+# v0.3: buildable kits (2026-10-22)
+
+From the first kit dogfood (`.local-data/new/homelab-forge`, notes in
+`.reincarnate/step-01-notes.md`): a context-free builder could not build the step-1 capability
+from the kit alone. Decisions (Dan, 2026-10-22): acceptance checks are stored per capability
+plus design requirements; dependencies are the option's stack plus small justified extras
+logged in `DEPENDENCIES.md`; unmet needs with a catalog candidate pull that candidate in as a
+real step; the option's stack wins over the profile stack.
+
+## Capability `acceptance` (schema, store, comprehension, enrich)
+
+- Dossier capability field `"acceptance": ["observable check", ...]`: 2-4 checks, each an
+  input-to-outcome behavior a test can verify ("Given a token signed more than max_age seconds ago, verification fails with an expiry error"), with no donor code, file paths, or library names.
+  `normalize_dossier`: list of non-empty stripped strings, at most 5, each at most 300 chars.
+- Store column `acceptance_json TEXT DEFAULT '[]'` (migrated in place), `Capability.acceptance:
+  list[str]`, `set_capability_fields(..., acceptance=None)`.
+- Both comprehension prompts ask for it, and add: `what` and `acceptance` describe behavior and
+  never name the donor's third-party libraries or frameworks (those go in `dependencies`).
+- `reincarnate enrich --fields novelty,interfaces,acceptance` (default `novelty,interfaces`):
+  the Haiku prompt asks only for the requested fields and only those are applied;
+  `--only-missing` selects capabilities missing any requested field. The Jev engine cannot write
+  text, so `acceptance` is skipped there with a note. Backfill:
+  `reincarnate enrich --all --fields acceptance --only-missing`.
+
+## Kit generation (`kit.py`, `salvage.py`)
+
+**Target kind.** A kit target is *new* when the composition's target kind is new, or the target
+directory has none of `pyproject.toml, package.json, go.mod, Cargo.toml, Gemfile, pom.xml,
+build.gradle`. Otherwise it is *existing* (a registered project or a directory with a manifest).
+
+**Stack.** Existing target: the project's stack and test command. New target: the composition's
+`proposal["stack"]` (free text such as "TypeScript + Next.js + tRPC + SQLite (Drizzle)"), split on
+`+` and `,` into items; fall back to the profile stack.
+
+**Test command** (new targets): ecosystems from stack keywords. node: typescript, javascript, node,
+next.js, nextjs, react, vue, svelte, express, trpc, vite, deno, bun. python: python, fastapi,
+django, flask, pytest. go: go, golang. rust: rust, cargo. One ecosystem: `npm test`,
+`python -m pytest -q`, `go test ./...`, `cargo test`. Several or none: `make test` (step 0 adds a
+Makefile `test` target running every suite).
+
+**Dependency policy** (replaces "add no new third-party dependencies" everywhere):
+- New target: "Allowed dependencies: the stack below. Any other dependency must be small and
+  necessary; before adding it, record its name, version range and reason in `DEPENDENCIES.md`.
+  Prefer the standard library."
+- Existing target: the same, with "the dependencies this project already uses" as the allowed set.
+- `salvage.constraint_lines(policy)` renders it; every spec and `CLAUDE.md` use the same text.
+
+**Step 0 (new targets only):** `specs/00-scaffold.md`, `tasks.md` "Step 0: scaffold the project".
+It creates the manifest(s) for each ecosystem with only allowed dependencies, a minimal skeleton
+(entry points only, no feature code), the test runner wired so the test command runs every suite,
+one passing smoke test per ecosystem, a README "Run the tests" section, and `DEPENDENCIES.md`
+listing every declared dependency with its reason ("in the stack" for stack items). Its
+acceptance checks: the test command exits 0 with at least one test per ecosystem;
+`DEPENDENCIES.md` covers every declared dependency; no feature code from later steps.
+
+**CLAUDE.md:** `## Stack` (one bullet per item), `## Dependencies` (the policy text),
+`## Tests` (the test command; "set in step 0" for new targets), `## Clean-room rules`, and the
+one-step-at-a-time line. `run.sh` sets `TEST_CMD` to the test command.
+
+**Step order.** Capability steps in proposal order. A gap with `before_capability_id` is emitted
+immediately before that capability's step. Gaps without it come after all capability steps.
+
+**Acceptance checks in every spec** (`**Acceptance checks:**` section):
+- capability step: the capability's stored `acceptance`, then "Covers requirement rN: <text>" for
+  each `proposal["coverage"]` row with `kind == "catalog"` and `cap == "c<capability_id>"`, joined
+  to `proposal["requirements"]`;
+- wiring gap step: "Provides `<token>` as defined above" and "<consumer> (step N) can use this
+  step's `<token>` without a stub of its own";
+- new-work gap step: "The behavior above is implemented and covered by tests";
+- if a spec has none: "(none recorded: write a test for every behavior above and list them in
+  your step notes)".
+
+**Wiring gap specs** (gap has `token`): title "Build fresh: `<token>` for <consumer>"; behavior =
+the vocabulary definition of the token (or "no canonical definition; infer from the consumer"),
+then "Consumed by <consumer> (step N): <consumer what>"; suggested donors listed as
+"comprehend later, do not read now".
+
+**Glue ids.** In `BLUEPRINT.md` and every spec, `c<id>` references resolve to
+"<capability name> (step N)" when the capability is in the kit, else to its name.
+
+## `design pick` (unmet needs and glue)
+
+- For each unmet wiring need (token, consumer) with catalog candidates (decision 2026-10-22,
+  after the first re-export pulled in poor fits): candidates whose license is `deny` are never
+  auto-filled. Rank the rest: same donor as the consumer first, then a deterministic relevance
+  score (content-word overlap between the candidate's name and behavior and the consumer's name
+  and behavior plus the token and its vocabulary definition), then the wiring rank. Auto-fill
+  the top one only if it is same-donor or its relevance clears `RELEVANCE_MIN`; otherwise the
+  need stays a build-fresh gap that lists the weak candidates. An auto-filled part becomes a
+  capability step inserted immediately before the consumer (role "provides `<token>` for
+  <consumer>", `auto_filled[].reason` "same donor" or "relevance 0.NN"), deduplicated. Recompute wiring for the augmented
+  set and repeat once (at most 2 passes, at most 4 auto-added capabilities). Record
+  `proposal["auto_filled"] = [{token, consumer, capability_id, name, donor}]`.
+- Remaining unmet needs become gaps `{need: "<token> for <consumer>", token, definition,
+  consumer_capability_id, before_capability_id, suggested_donors, build_fresh: true}`.
+  `compose._gaps` preserves these extra keys.
+- `_glue_markdown` resolves `c<id>` to capability names.
+- The design prompt states the profile stack as the user's preference: "prefer it unless the
+  option's nature calls for another stack, and say why in the rationale".
+- Specs scrub donor file references (paths with an extension, with or without line ranges) from
+  every piece of dossier prose they quote; the "Donor reference files (context only — DO NOT
+  COPY)" line is the only place donor paths appear.

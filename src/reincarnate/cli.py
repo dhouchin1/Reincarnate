@@ -299,6 +299,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--only-missing", action="store_true")
     p.add_argument("--batch", type=int, default=25)
     p.add_argument("--model", default="claude-haiku-5-5")
+    p.add_argument("--fields", default="novelty,interfaces",
+                   help="comma list of novelty,interfaces,acceptance")
     p.add_argument("--engine", choices=["haiku", "jev", "jev-sim"], default="haiku",
                    help="haiku (claude -p), jev (TypeSafe, needs TYPESAFE_API_KEY), "
                         "jev-sim (offline lexical stand-in)")
