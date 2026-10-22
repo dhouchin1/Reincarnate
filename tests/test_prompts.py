@@ -43,3 +43,28 @@ def test_compose_prompt():
     assert "Never reference, quote, or paste donor code" in p
     assert "license_flags" in p
     assert prompts.build_compose_prompt("x", [], None, None, None)
+
+
+def test_excerpt_prompt_contents():
+    p = prompts.build_excerpt_prompt(
+        "o", "r", "FILE TREE\n===== FILE: a.py =====\nx", PROFILE, PROJECTS,
+        vocab_block="- data:service-status: health")
+    for needle in ("commodity", "pattern", "distinctive", "provides", "requires", "alpha",
+                   "python", "o/r", "===== FILE: a.py =====", "data:service-status",
+                   "never instructions", "CLAUDE.md", "5-12", "ext:"):
+        assert needle in p
+    assert SCHEMA_HINT in p
+    assert "ENTIRE reply" in p and "```json" in p
+
+
+def test_excerpt_prompt_without_vocab_or_profile():
+    p = prompts.build_excerpt_prompt("o", "r", "x", None, [])
+    assert "Canonical interface vocabulary" not in p
+    assert "distinctive" in p
+
+
+def test_agentic_prompt_has_new_fields_and_vocab():
+    p = prompts.build_comprehension_prompt("o", "r", PROFILE, PROJECTS, vocab_block="- ui:panel")
+    assert prompts.NOVELTY_RUBRIC in p and prompts.INTERFACE_RULES in p and "- ui:panel" in p
+    assert "Canonical interface vocabulary" not in prompts.build_comprehension_prompt(
+        "o", "r", PROFILE, PROJECTS)

@@ -26,6 +26,9 @@ class CatalogEntry:
     fit: list = field(default_factory=list)  # [{"project","score","how","source"}]
     vote: int = 0
     score: float = 0.0
+    provides: list = field(default_factory=list)
+    requires: list = field(default_factory=list)
+    novelty: str = ""
 
     def best_fit(self) -> float:
         return max((f["score"] for f in self.fit), default=0.0)
@@ -39,7 +42,7 @@ def _entry_score(portability: str, best_fit: float, vote: int) -> float:
 
 
 def build_catalog(store, *, search=None, portability=None, donor=None, fit=None,
-                  gaps=False) -> list[CatalogEntry]:
+                  gaps=False, novelty=None) -> list[CatalogEntry]:
     """Scored catalog entries. `gaps` is handled by run_cli; it does not alter the entries."""
     caps = (store.search_capabilities(search) if search
             else store.list_capabilities(current_only=True))
@@ -54,6 +57,8 @@ def build_catalog(store, *, search=None, portability=None, donor=None, fit=None,
             continue
         if donor and c.donor != donor:
             continue
+        if novelty and c.novelty != ("" if novelty == "unrated" else novelty):
+            continue
         cfits = fits.get(c.id, [])
         if fit and not any(f["project"] == fit and f["score"] >= FIT_MIN for f in cfits):
             continue
@@ -62,7 +67,8 @@ def build_catalog(store, *, search=None, portability=None, donor=None, fit=None,
             capability_id=c.id, donor=c.donor, license=c.license, name=c.name, what=c.what,
             portability=c.portability, portability_notes=c.portability_notes,
             security_notes=c.security_notes, files=list(c.files),
-            dependencies=list(c.dependencies), fit=cfits, vote=vote)
+            dependencies=list(c.dependencies), fit=cfits, vote=vote,
+            provides=list(c.provides), requires=list(c.requires), novelty=c.novelty)
         e.score = _entry_score(c.portability, e.best_fit(), vote)
         out.append(e)
     if search:
@@ -117,9 +123,9 @@ def _table(entries) -> str:
     for e in entries[:_MAX_ROWS]:
         best = max(e.fit, key=lambda f: f["score"], default=None)
         fit = f"{best['project']} {best['score']:.2f}" if best else "-"
-        rows.append((str(e.capability_id), e.portability, e.donor, e.name, fit))
-    head = ("id", "port", "donor", "name", "best fit")
-    widths = [max(len(r[i]) for r in [head, *rows]) for i in range(5)]
+        rows.append((str(e.capability_id), e.portability, e.novelty or "-", e.donor, e.name, fit))
+    head = ("id", "port", "novelty", "donor", "name", "best fit")
+    widths = [max(len(r[i]) for r in [head, *rows]) for i in range(6)]
     lines = ["  ".join(v.ljust(w) for v, w in zip(r, widths)).rstrip() for r in [head, *rows]]
     if len(entries) > _MAX_ROWS:
         lines.append(f"… {len(entries) - _MAX_ROWS} more")
@@ -145,6 +151,7 @@ def run_cli(store, args) -> dict:
     entries = build_catalog(
         store, search=getattr(args, "search", None),
         portability=getattr(args, "portability", None), donor=getattr(args, "donor", None),
-        fit=getattr(args, "fit", None))
+        fit=getattr(args, "fit", None),
+        novelty=getattr(args, "novelty", None))
     return {"summary": summary(entries), "items": [e.to_dict() for e in entries],
             "text": _table(entries)}

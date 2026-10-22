@@ -92,10 +92,37 @@ def clone_repo(url: str, *, dest: Path | None = None, timeout: int = 180,
             "sha": _git("rev-parse", "HEAD", cwd=dest), "reused": False}
 
 
-def comprehend_url(store, url: str, *, model: str = "sonnet", max_turns: int = 40,
-                   force: bool = False) -> dict:
-    """Clone, run headless comprehension, ingest. Does not run the overlay."""
-    from reincarnate import claude_runner, paths, prompts, render, schema
+DEFAULT_MODEL = "claude-haiku-5-5"
+DEFAULT_BUDGET = 120_000
+DEFAULT_MAX_TURNS = 40
+
+
+def _vocab_block(store) -> str:
+    getter = getattr(store, "get_vocabulary", None)
+    if getter is None:
+        return ""
+    try:
+        return str(getter().block() or "")
+    except Exception:  # noqa: BLE001 - a vocabulary problem must not block comprehension
+        return ""
+
+
+def comprehend_url(store, url: str, *, model: str | None = None, max_turns: int | None = None,
+                   force: bool = False, mode: str = "excerpt", budget: int | None = None) -> dict:
+    """Clone, run headless comprehension, ingest. Does not run the overlay.
+
+    `excerpt` (default): rank files, pack up to `budget` chars, one isolated tool-less call
+    run in a fresh empty directory. `agentic`: the v0.1 read-only multi-turn pass in the clone.
+    """
+    import tempfile
+
+    from reincarnate import claude_runner, excerpt, paths, prompts, render, schema
+
+    if mode not in ("excerpt", "agentic"):
+        raise ValueError(f"unknown comprehension mode: {mode!r}")
+    model = model or DEFAULT_MODEL
+    max_turns = max_turns or DEFAULT_MAX_TURNS
+    budget = budget or DEFAULT_BUDGET
 
     info = clone_repo(url)
     owner, repo, sha = info["owner"], info["repo"], info["sha"]
@@ -105,9 +132,28 @@ def comprehend_url(store, url: str, *, model: str = "sonnet", max_turns: int = 4
         return {"skipped": True, "dossier_id": existing.id, "donor": donor, "sha": sha,
                 "message": "dossier already exists for this sha; use --force"}
 
-    prompt = prompts.build_comprehension_prompt(
-        owner, repo, store.get_profile(), store.list_projects())
-    res = claude_runner.run(prompt, cwd=Path(info["path"]), model=model, max_turns=max_turns)
+    profile, projects = store.get_profile(), store.list_projects()
+    vocab_block = _vocab_block(store)
+    ex = None
+    if mode == "excerpt":
+        ex = excerpt.select_files(Path(info["path"]), budget)
+        if not ex.files:
+            return {"dossier_id": None, "donor": donor, "sha": sha, "capabilities": 0,
+                    "cost_usd": 0.0, "note_path": "", "parsed": False, "mode": mode,
+                    "excerpt_files": 0, "excerpt_chars": 0,
+                    "message": "no readable source files found to excerpt"}
+        prompt = prompts.build_excerpt_prompt(
+            owner, repo, excerpt.render_excerpt(ex), profile, projects, vocab_block)
+        with tempfile.TemporaryDirectory(prefix="reincarnate-run-") as scratch:
+            res = claude_runner.run(prompt, cwd=Path(scratch), model=model, max_turns=1, tools="")
+    else:
+        prompt = prompts.build_comprehension_prompt(owner, repo, profile, projects, vocab_block)
+        res = claude_runner.run(prompt, cwd=Path(info["path"]), model=model,
+                                max_turns=max_turns)
+
+    extra = {"mode": mode}
+    if ex is not None:
+        extra |= {"excerpt_files": len(ex.files), "excerpt_chars": ex.chars}
 
     out_dir = paths.ensure(paths.dossiers_dir())
     data = schema.extract_dossier_json(res.text)
@@ -116,9 +162,14 @@ def comprehend_url(store, url: str, *, model: str = "sonnet", max_turns: int = 4
         raw_path.write_text(res.text or res.stderr, encoding="utf-8")
         return {"dossier_id": None, "donor": donor, "sha": sha, "capabilities": 0,
                 "cost_usd": res.cost_usd, "note_path": str(raw_path), "parsed": False,
-                "message": f"no dossier JSON in output (rc={res.rc}); raw saved to {raw_path}"}
+                "message": f"no dossier JSON in output (rc={res.rc}); raw saved to {raw_path}",
+                **extra}
 
     data = schema.normalize_dossier(data)
+    lic = excerpt.clean_license(data["dependencies"].get("license"))
+    if lic == "unknown" and ex is not None:
+        lic = excerpt.license_hint(ex) or lic
+    data["dependencies"]["license"] = lic
     problems = schema.validate_dossier(data)
     canonical = url if url.startswith("https://") else f"https://github.com/{owner}/{repo}"
     dossier = store.upsert_dossier(owner, repo, canonical, sha, data, model=model,
@@ -128,4 +179,4 @@ def comprehend_url(store, url: str, *, model: str = "sonnet", max_turns: int = 4
     return {"dossier_id": dossier.id, "donor": donor, "sha": sha,
             "capabilities": len(data.get("capabilities", [])), "cost_usd": res.cost_usd,
             "note_path": str(note), "parsed": True,
-            "message": "; ".join(problems) if problems else ""}
+            "message": "; ".join(problems) if problems else "", **extra}

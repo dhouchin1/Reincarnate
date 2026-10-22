@@ -1,6 +1,6 @@
 ---
 description: "Browse and search your capability catalog, and vote capabilities up or down"
-argument-hint: "[search text] [--portability high|medium|low] [--donor owner/repo] [--fit <project-slug>] [--gaps]"
+argument-hint: "[search text] [--portability high|medium|low] [--novelty commodity|pattern|distinctive|unrated] [--donor owner/repo] [--fit <project-slug>] [--gaps]"
 allowed-tools: Bash, Read
 ---
 
@@ -15,6 +15,7 @@ the rest map one-to-one:
 |---|---|
 | free text | `--search "<text>"` |
 | a portability level | `--portability high\|medium\|low` |
+| "distinctive" / "not boilerplate" / a novelty level | `--novelty commodity\|pattern\|distinctive\|unrated` |
 | a donor repo | `--donor owner/repo` |
 | a project slug to fit against | `--fit <slug>` |
 | "gaps" / what is missing | `--gaps` |

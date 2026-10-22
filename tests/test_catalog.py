@@ -107,3 +107,18 @@ def test_gaps(env):
     assert intent["intent"] == "health pinging"
     assert "health-check pinger" in intent["matches"]
     assert isinstance(r["text"], str)
+
+
+def test_novelty_filter_and_fields(env):
+    s = env
+    s.set_capability_fields(cid(s, "icon library"), novelty="commodity")
+    s.set_capability_fields(cid(s, "health-check pinger"), novelty="distinctive",
+                            provides=["data:service-status"])
+    assert names(catalog.build_catalog(s, novelty="commodity")) == ["icon library"]
+    assert set(names(catalog.build_catalog(s, novelty="unrated"))) == {
+        "media-calendar", "other thing"}
+    e = catalog.build_catalog(s, novelty="distinctive")[0]
+    d = e.to_dict()
+    assert d["novelty"] == "distinctive" and d["provides"] == ["data:service-status"]
+    assert d["requires"] == []
+    assert "novelty" in catalog._table([e]).splitlines()[0]

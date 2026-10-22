@@ -80,6 +80,9 @@ class Capability(_Base):
     security_notes: str = ""
     donor: str = ""
     license: str = ""
+    provides: list[str] = field(default_factory=list)
+    requires: list[str] = field(default_factory=list)
+    novelty: str = ""
 
 
 @dataclass
@@ -102,4 +105,17 @@ class Composition(_Base):
     target_slug: str = ""
     proposal: dict = field(default_factory=dict)
     status: str = "proposed"
+    created: str = ""
+
+
+@dataclass
+class Design(_Base):
+    id: int = 0
+    slug: str = ""
+    idea: str = ""
+    title: str = ""
+    requirements: list[dict] = field(default_factory=list)
+    options: list[dict] = field(default_factory=list)
+    engine: str = ""
+    meta: dict = field(default_factory=dict)
     created: str = ""

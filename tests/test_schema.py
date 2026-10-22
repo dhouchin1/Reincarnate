@@ -50,3 +50,24 @@ def test_extract_bare_and_trailing_prose_and_none():
     assert extract_dossier_json('{"x": 1}\nthanks!') == {"x": 1}
     assert extract_dossier_json("no json at all") is None
     assert extract_dossier_json("") is None
+
+
+def test_normalize_new_capability_fields():
+    d = normalize_dossier({"capabilities": [
+        {"name": "A", "provides": [" Data:X ", "data:x", "store:y", "", 5],
+         "requires": ["ext:docker"] + [f"data:t{i}" for i in range(10)],
+         "novelty": " Distinctive "},
+        {"name": "B", "provides": "data:x", "requires": None, "novelty": "legendary"},
+        {"name": "C"},
+    ]})
+    a, b, c = d["capabilities"]
+    assert a["provides"] == ["data:x", "store:y", "5"]
+    assert len(a["requires"]) == 6 and a["requires"][0] == "ext:docker"
+    assert a["novelty"] == "distinctive"
+    assert b["provides"] == [] and b["requires"] == [] and b["novelty"] == ""
+    assert c["provides"] == [] and c["novelty"] == ""
+
+
+def test_schema_hint_has_new_fields():
+    for k in ("provides", "requires", "novelty"):
+        assert f'"{k}"' in SCHEMA_HINT

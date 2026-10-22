@@ -8,8 +8,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import paths
-from .models import Capability, Composition, Dossier, Fit, Profile, Project
+from . import interfaces, paths
+from .models import Capability, Composition, Design, Dossier, Fit, Profile, Project
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS profile(
@@ -37,7 +37,21 @@ CREATE TABLE IF NOT EXISTS compositions(
   target_kind TEXT, target_slug TEXT, proposal_json TEXT, status TEXT, created TEXT);
 CREATE TABLE IF NOT EXISTS kits(
   id INTEGER PRIMARY KEY, composition_id INTEGER, path TEXT, created TEXT);
+CREATE TABLE IF NOT EXISTS vocab_tokens(
+  token TEXT PRIMARY KEY, definition TEXT, platform INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS vocab_aliases(alias TEXT PRIMARY KEY, canonical TEXT);
+CREATE TABLE IF NOT EXISTS designs(
+  id INTEGER PRIMARY KEY, slug TEXT UNIQUE, idea TEXT, title TEXT, requirements_json TEXT,
+  options_json TEXT, engine TEXT, meta_json TEXT, created TEXT);
 """
+
+# columns added to `capabilities` after v0.1; migrate() adds whichever are missing
+_CAP_COLUMNS = (
+    ("provides_json", "TEXT DEFAULT '[]'"),
+    ("requires_json", "TEXT DEFAULT '[]'"),
+    ("novelty", "TEXT DEFAULT ''"),
+)
+NOVELTY = ("commodity", "pattern", "distinctive")
 
 FTS_SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS capabilities_fts USING fts5(
@@ -74,6 +88,11 @@ def _j(v) -> str:
     return json.dumps(v, ensure_ascii=False)
 
 
+def _novelty(v) -> str:
+    v = str(v or "").strip().lower()
+    return v if v in NOVELTY else ""
+
+
 def _l(s, default):
     try:
         return json.loads(s) if s else default
@@ -99,12 +118,36 @@ class Store:
     def migrate(self) -> None:
         with self.conn:
             self.conn.executescript(SCHEMA)
+            have = {r["name"] for r in self.conn.execute("PRAGMA table_info(capabilities)")}
+            for col, decl in _CAP_COLUMNS:
+                if col not in have:
+                    self.conn.execute(f"ALTER TABLE capabilities ADD COLUMN {col} {decl}")
+            if not self.conn.execute("SELECT 1 FROM vocab_tokens LIMIT 1").fetchone():
+                self._seed_vocabulary()
         try:
             with self.conn:
                 self.conn.executescript(FTS_SCHEMA)
             self.fts = True
         except sqlite3.OperationalError:
             self.fts = False
+
+    def _seed_vocabulary(self) -> None:
+        data = interfaces.load_packaged_vocabulary()
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO vocab_tokens(token, definition, platform) VALUES (?,?,?)",
+            [(t, (d or {}).get("definition", ""), 1 if (d or {}).get("platform") else 0)
+             for t, d in (data.get("tokens") or {}).items()])
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO vocab_aliases(alias, canonical) VALUES (?,?)",
+            list((a, c) for a, c in (data.get("aliases") or {}).items()))
+
+    def get_vocabulary(self) -> interfaces.Vocabulary:
+        rows = self.conn.execute("SELECT token, definition, platform FROM vocab_tokens")
+        tokens = {r["token"]: {"definition": r["definition"] or "", "platform": bool(r["platform"])}
+                  for r in rows}
+        aliases = {r["alias"]: r["canonical"]
+                   for r in self.conn.execute("SELECT alias, canonical FROM vocab_aliases")}
+        return interfaces.Vocabulary(tokens, aliases)
 
     # -- profile --------------------------------------------------------------------------
     def get_profile(self) -> Profile | None:
@@ -190,15 +233,20 @@ class Store:
                     (owner, repo, sha, *vals))
                 did = cur.lastrowid
             ids: dict[str, int] = {}
+            vocab = self.get_vocabulary()
             for i, c in enumerate(data.get("capabilities") or []):
                 if not isinstance(c, dict) or not c.get("name"):
                     continue
                 cur = self.conn.execute(
                     "INSERT INTO capabilities(dossier_id, idx, name, what, files_json, deps_json,"
-                    " portability, portability_notes, security_notes) VALUES (?,?,?,?,?,?,?,?,?)",
+                    " portability, portability_notes, security_notes, provides_json, requires_json,"
+                    " novelty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (did, i, c["name"], c.get("what", ""), _j(c.get("files") or []),
                      _j(c.get("dependencies") or []), c.get("portability", "medium"),
-                     c.get("portability_notes", ""), c.get("security_notes", "")))
+                     c.get("portability_notes", ""), c.get("security_notes", ""),
+                     _j(vocab.canonicalize(interfaces.normalize_list(c.get("provides")))),
+                     _j(vocab.canonicalize(interfaces.normalize_list(c.get("requires")))),
+                     _novelty(c.get("novelty"))))
                 ids.setdefault(c["name"].strip().lower(), cur.lastrowid)
             for f in data.get("fit_to_projects") or []:
                 if not isinstance(f, dict):
@@ -261,6 +309,8 @@ class Store:
             dependencies=_l(r["deps_json"], []), portability=r["portability"] or "medium",
             portability_notes=r["portability_notes"] or "",
             security_notes=r["security_notes"] or "",
+            provides=_l(r["provides_json"], []), requires=_l(r["requires_json"], []),
+            novelty=r["novelty"] or "",
             donor=f"{r['_owner']}/{r['_repo']}", license=r["_license"] or "")
 
     def list_capabilities(self, *, dossier_id: int | None = None,
@@ -278,6 +328,26 @@ class Store:
     def get_capability(self, capability_id: int) -> Capability | None:
         r = self.conn.execute(_CAP_SELECT + " WHERE c.id=?", (capability_id,)).fetchone()
         return self._cap(r) if r else None
+
+    def set_capability_fields(self, capability_id, *, provides=None, requires=None,
+                              novelty=None) -> None:
+        """Update interfaces / novelty; tokens are normalized and canonicalized. None = keep."""
+        sets, args = [], []
+        vocab = self.get_vocabulary() if (provides is not None or requires is not None) else None
+        if provides is not None:
+            sets.append("provides_json=?")
+            args.append(_j(vocab.canonicalize(interfaces.normalize_list(list(provides)))))
+        if requires is not None:
+            sets.append("requires_json=?")
+            args.append(_j(vocab.canonicalize(interfaces.normalize_list(list(requires)))))
+        if novelty is not None:
+            sets.append("novelty=?")
+            args.append(_novelty(novelty))
+        if not sets:
+            return
+        with self.conn:
+            self.conn.execute(f"UPDATE capabilities SET {', '.join(sets)} WHERE id=?",
+                              (*args, capability_id))
 
     def search_capabilities(self, query: str, *, limit=50, current_only=True) -> list[Capability]:
         """FTS (or LIKE) search. `current_only` hides capabilities of superseded dossiers,
@@ -380,3 +450,39 @@ class Store:
                 "INSERT INTO kits(composition_id, path, created) VALUES (?,?,?)",
                 (composition_id, path, now()))
         return cur.lastrowid
+
+    # -- designs --------------------------------------------------------------------------
+    @staticmethod
+    def _design(r) -> Design:
+        return Design(id=r["id"], slug=r["slug"], idea=r["idea"] or "", title=r["title"] or "",
+                      requirements=_l(r["requirements_json"], []),
+                      options=_l(r["options_json"], []), engine=r["engine"] or "",
+                      meta=_l(r["meta_json"], {}), created=r["created"] or "")
+
+    def save_design(self, d: Design) -> Design:
+        d.created = d.created or now()
+        with self.conn:
+            row = self.conn.execute("SELECT id FROM designs WHERE slug=?", (d.slug,)).fetchone()
+            vals = (d.idea, d.title, _j(d.requirements), _j(d.options), d.engine, _j(d.meta))
+            if row:
+                d.id = row["id"]
+                self.conn.execute(
+                    "UPDATE designs SET idea=?, title=?, requirements_json=?, options_json=?,"
+                    " engine=?, meta_json=? WHERE id=?", (*vals, d.id))
+            else:
+                cur = self.conn.execute(
+                    "INSERT INTO designs(slug, idea, title, requirements_json, options_json,"
+                    " engine, meta_json, created) VALUES (?,?,?,?,?,?,?,?)",
+                    (d.slug, *vals, d.created))
+                d.id = cur.lastrowid
+        return d
+
+    def get_design(self, ref: str | int) -> Design | None:
+        if isinstance(ref, str) and ref.strip().isdigit():
+            ref = int(ref)
+        col = "id" if isinstance(ref, int) else "slug"
+        r = self.conn.execute(f"SELECT * FROM designs WHERE {col}=?", (ref,)).fetchone()
+        return self._design(r) if r else None
+
+    def list_designs(self) -> list[Design]:
+        return [self._design(r) for r in self.conn.execute("SELECT * FROM designs ORDER BY id")]

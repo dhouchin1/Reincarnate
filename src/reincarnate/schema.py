@@ -14,7 +14,10 @@ SCHEMA_HINT = """{
   "architecture": "markdown prose",
   "capabilities": [
     {"name": "", "what": "", "files": [], "dependencies": [],
-     "portability": "high|medium|low", "portability_notes": "", "security_notes": ""}
+     "portability": "high|medium|low", "portability_notes": "", "security_notes": "",
+     "provides": ["kind:thing, 0-6 interface tokens this capability offers"],
+     "requires": ["kind:thing, 0-6 interface tokens it needs from other parts or the environment"],
+     "novelty": "commodity|pattern|distinctive"}
   ],
   "dependencies": {"license": "", "notable": [], "supply_chain_flags": []},
   "security": {"concerns": [], "network_egress": "", "dangerous_patterns": []},
@@ -28,6 +31,8 @@ _LIST_KEYS = ("languages", "entry_points", "capabilities", "fit_to_projects",
               "salvage_recommendations")
 _CAP_STR = ("name", "what", "portability_notes", "security_notes")
 _CAP_LIST = ("files", "dependencies")
+NOVELTY = ("commodity", "pattern", "distinctive")
+MAX_TOKENS = 6
 
 
 def _str(v) -> str:
@@ -44,6 +49,20 @@ def _list(v) -> list:
 
 def _strlist(v) -> list[str]:
     return [_str(x) for x in _list(v)]
+
+
+def _tokens(v) -> list[str]:
+    """Lowercased, stripped, deduped strings, at most MAX_TOKENS; non-list -> []."""
+    out: list[str] = []
+    if not isinstance(v, (list, tuple)):
+        return out
+    for x in v:
+        t = _str(x).strip().lower()
+        if t and t not in out:
+            out.append(t)
+        if len(out) >= MAX_TOKENS:
+            break
+    return out
 
 
 def validate_dossier(d: dict) -> list[str]:
@@ -99,6 +118,10 @@ def normalize_dossier(d: dict) -> dict:
             nc[k] = _strlist(c.get(k))
         p = _str(c.get("portability")).strip().lower()
         nc["portability"] = p if p in PORTABILITY else "medium"
+        nc["provides"] = _tokens(c.get("provides"))
+        nc["requires"] = _tokens(c.get("requires"))
+        n = _str(c.get("novelty")).strip().lower()
+        nc["novelty"] = n if n in NOVELTY else ""
         caps.append(nc)
     out["capabilities"] = caps
     fits = []

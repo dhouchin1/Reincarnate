@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "canonical_map": {"data:fixture-alias": "data:peer-connection", "config:fixture-drop": null},
+  "items": {
+    "40-Code/repos/Acme-Widget.md::health pinger": {
+      "provides": ["data:service-status"], "requires": ["http:api-server", "Store:Service Registry"],
+      "source": "backfill"},
+    "40-Code/repos/acme-widget.md::icon library": {
+      "provides": ["ui:icon-set"], "requires": [], "source": "backfill"},
+    "40-Code/repos/ghost-repo.md::nothing here": {
+      "provides": ["data:x"], "requires": [], "source": "backfill"}
+  }
+}

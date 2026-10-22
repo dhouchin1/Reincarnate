@@ -38,7 +38,12 @@ tell the user and stop. If `$ARGUMENTS` is empty, ask which repo to comprehend.
 ```bash
 reincarnate project list --json
 reincarnate profile show --json
+reincarnate vocab --json
 ```
+
+The vocabulary is the canonical list of interface tokens (`kind:thing`) shared across the
+whole catalog. Prefer a canonical token whenever its definition genuinely fits; a precise new
+`kind:thing` beats a misleading canonical one.
 
 `fit_to_projects` entries must use the `slug` values from the project list. If the list is
 empty, leave `fit_to_projects` as `[]` and mention that `/reincarnate:setup` can register
@@ -86,7 +91,9 @@ Produce **exactly** this schema (keys as shown; `portability` is `high`, `medium
   "architecture": "markdown prose",
   "capabilities": [
     {"name": "", "what": "", "files": [], "dependencies": [],
-     "portability": "high|medium|low", "portability_notes": "", "security_notes": ""}
+     "portability": "high|medium|low", "portability_notes": "", "security_notes": "",
+     "provides": ["kind:thing"], "requires": ["kind:thing"],
+     "novelty": "commodity|pattern|distinctive"}
   ],
   "dependencies": {"license": "", "notable": [], "supply_chain_flags": []},
   "security": {"concerns": [], "network_egress": "", "dangerous_patterns": []},
@@ -104,6 +111,17 @@ Guidance per field:
   user's stack from the profile.
 - `dependencies.license`: the SPDX id from the LICENSE file or manifest (`"unknown"` if
   absent; never guess).
+- `provides` / `requires`: 0-4 interface tokens each. Kinds: `auth`, `store`, `http`,
+  `event`, `notify`, `ui`, `schedule`, `config`, `data`, `ext`. `requires` is what it needs
+  from OTHER parts or the environment; state it keeps for itself goes in `provides`; `ext:`
+  (OS, third-party API) is never provided by a capability. Internal helpers get empty lists.
+- `novelty`, the "beyond boilerplate" bar:
+  - `commodity`: a competent coding agent writes it correctly from a one-line prompt
+    (retry/backoff, logging, config loading, CRUD endpoints, auth boilerplate).
+  - `pattern`: a known shape with real design choices worth specifying.
+  - `distinctive`: non-obvious behavior an agent would not invent unprompted; the reason to
+    reincarnate.
+  Be strict: most capabilities in most repos are `commodity` or `pattern`.
 - `fit_to_projects[].capability` must match a capability `name` exactly.
 - `salvage_recommendations`: the capabilities you would rebuild first, in order, as short strings.
 

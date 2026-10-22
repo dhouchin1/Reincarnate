@@ -28,6 +28,12 @@ def _caps(caps) -> str:
             out.append("- **Files:** " + ", ".join(f"`{f}`" for f in c["files"]))
         if c.get("dependencies"):
             out.append("- **Dependencies:** " + ", ".join(str(d) for d in c["dependencies"]))
+        if c.get("provides"):
+            out.append("- **Provides:** " + ", ".join(f"`{t}`" for t in c["provides"]))
+        if c.get("requires"):
+            out.append("- **Requires:** " + ", ".join(f"`{t}`" for t in c["requires"]))
+        if str(c.get("novelty") or "").strip():
+            out.append(f"- **Novelty:** {str(c['novelty']).strip()}")
         if str(c.get("portability_notes") or "").strip():
             out.append(f"- **Portability notes:** {str(c['portability_notes']).strip()}")
         if str(c.get("security_notes") or "").strip():
