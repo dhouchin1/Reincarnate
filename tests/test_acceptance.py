@@ -22,10 +22,10 @@ def _cap(**kw):
 def test_normalize_acceptance_limits():
     assert _cap()["acceptance"] == []
     assert _cap(acceptance="not a list")["acceptance"] == []
-    got = _cap(acceptance=["  one  ", "", "   ", "x" * 400, "2", "3", "4", "5", "6"])
+    got = _cap(acceptance=["  one  ", "", "   ", "x" * 900, "2", "3", "4", "5", "6"])
     assert got["acceptance"][0] == "one"
-    assert len(got["acceptance"]) == 5 and all(len(a) <= 300 for a in got["acceptance"])
-    assert len(got["acceptance"][1]) == 300
+    assert len(got["acceptance"]) == 5 and all(len(a) <= 600 for a in got["acceptance"])
+    assert len(got["acceptance"][1]) == 600 and got["acceptance"][1].endswith(" [truncated]")
 
 
 def test_schema_hint_has_acceptance():

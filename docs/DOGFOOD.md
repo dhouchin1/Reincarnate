@@ -93,3 +93,61 @@ requirement.
 Found and fixed during the work: key values first came back using the donor library's option
 names (`staticGrid`, a `--gridstack-` CSS variable); the deepen prompt now requires plain
 behavioral words, and re-deepening removed them.
+
+## v3 rebuild: steps 0-5 on the v0.4 kit (2026-10-22)
+
+Same protocol, run to step 5 so the auth guard seam is exercised. The kit was exported before
+the truncation fix below, so the builder saw cut-off checks; it logged them.
+
+| | v1 | v2 | v3 |
+|---|---|---|---|
+| Kit generator | v0.2 | v0.3 + acceptance backfill | v0.4, all parts deepened |
+| Steps built | 1 | 0-2 | 0-5 |
+| Result | layout fragment, wrong stack | Next.js app, grid and store | Next.js app through auth: grid, store, health ping, icon library, local/LDAP/OIDC login |
+| Tests | 29 | 18 | 172 (15 files), `tsc` clean |
+| Dependencies | 0 | 13 | 20; extras logged: `vitest`, `ldapts` |
+| Grid questions | 12 | 9 | 13 |
+| Questions, steps 0-2 | n/a | 25 (7, 9, 9) | 34 (7, 14, 13) |
+
+**The count went up, and that is the expected direction.** Richer specs describe more of the
+donor's behavior, so the builder asks about finer details. Of v2's nine grid questions, the
+five foundational ones are gone: breakpoints and column counts, edit mode, how layout
+persists, what happens to a tile missing a breakpoint, and whether apps and widgets share a
+grid. v3's grid questions are about details v2's spec never reached (cross-area drag,
+sidebars, gap math) plus four leftovers: library choice, minimum tile size, the auto-placement
+algorithm, and collisions. Question count is a poor metric once specs get rich; the share of
+foundational questions is the useful one.
+
+**The guard seam worked end to end.** Step 0 created one `authorize(ctx, level)` guard and
+three procedure tiers. Steps 1-4 declared every route with a tier while the guard allowed
+everything. Step 5 changed only the guard's body, the request context, and its type, with no
+edits to any earlier route, and tests show anonymous calls to every pre-step-5 endpoint are
+rejected. One gap: the guard covers tRPC procedures only, so non-tRPC routes must call it
+themselves.
+
+**Air gap held.** Donor clones were on disk for this run (from `deepen`). No builder tool call
+touched the sandbox.
+
+## Defects found in v3
+
+1. **Truncated checks and values (fixed in v0.4.1).** The first caps (80, 240, 300 characters)
+   cut checks, URLs and values mid-word: Auth lost the end of all 5 checks, Icon Library 4 of 5
+   and 8 of 20 values. Caps are now 600, 300 and 400 characters with a word-boundary cut and a
+   visible " [truncated]" marker; re-deepening the five affected parts ($0.05) left none cut.
+2. **No interface contract between client and server.** Every run invented its own transport
+   and endpoint names (v2's board router, v3's `board.moveTile` and `auth.login`). The kit
+   should fix the API style in step 0 and have each spec list the procedures its part exposes.
+3. **The donor's mechanism leaks through behavior.** The grid spec is phrased in its donor
+   library's change-event model ("multi-node change event"), and the auth spec around its
+   donor's auth library, including a bcrypt cost factor. Deepen should state outcomes and
+   requirements (salted, slow password hashing) and keep only persisted formats verbatim.
+4. **No configuration contract.** Environment variable names are unspecified except one, so the
+   builder invented `AUTH_LDAP_*` and `AUTH_OIDC_*`. The kit should name config keys once, from
+   the parts' `config:` tokens.
+5. **Deepened scope exceeds the design.** Deepen describes everything the donor part does
+   (sidebars, categories, cross-area drag), not just what the requirements need. Passing the
+   requirements a part covers into the deepen prompt would bound it.
+
+Environment note: the run filled the disk (two Next.js `node_modules` at 400-500 MB each plus
+donor clones, on a disk already at 99 percent). The builder cleared the npm cache to finish an
+install, which regenerates on its own; session scratch copies (1.2 GB) were deleted.

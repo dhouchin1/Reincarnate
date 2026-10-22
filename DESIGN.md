@@ -489,8 +489,10 @@ requirement becomes its own step after the parts it joins.
 ```
 
 - `data_shapes`: at most 8 shapes, each at most 40 fields; strings stripped and capped (name 80,
-  type 80, meaning 240, notes 400). `key_values`: at most 20 entries (name 80, value 80,
-  meaning 240). Both normalize to `[]` on bad input.
+  type 80, meaning 400, notes 400). `key_values`: at most 20 entries (name 120, value 300,
+  meaning 400). Acceptance checks are capped at 600. Both normalize to `[]` on bad input. A
+  string over its cap is cut at a word boundary and ends in " [truncated]" (the first caps,
+  80 and 240 and 300, silently cut URLs and checks mid-word, 2026-10-22).
 - Store columns `data_shapes_json`, `key_values_json` (default `'[]'`), `deepened_at`,
   `deepened_sha`, `deepened_model` (default `''`), migrated in place.
   `Capability.data_shapes`, `.key_values`, `.deepened_at`, `.deepened_sha`, `.deepened_model`.

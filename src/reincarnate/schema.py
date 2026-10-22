@@ -39,7 +39,7 @@ _CAP_LIST = ("files", "dependencies")
 NOVELTY = ("commodity", "pattern", "distinctive")
 MAX_TOKENS = 6
 MAX_ACCEPTANCE = 5
-MAX_ACCEPTANCE_CHARS = 300
+MAX_ACCEPTANCE_CHARS = 600
 MAX_SHAPES = 8
 MAX_SHAPE_FIELDS = 40
 MAX_KEY_VALUES = 20
@@ -81,7 +81,7 @@ def normalize_acceptance(v) -> list[str]:
     if not isinstance(v, (list, tuple)):
         return out
     for x in v:
-        t = _str(x).strip()[:MAX_ACCEPTANCE_CHARS].strip()
+        t = _cap_str(x, MAX_ACCEPTANCE_CHARS)
         if t:
             out.append(t)
         if len(out) >= MAX_ACCEPTANCE:
@@ -89,8 +89,18 @@ def normalize_acceptance(v) -> list[str]:
     return out
 
 
+TRUNCATED = " [truncated]"
+
+
 def _cap_str(v, n: int) -> str:
-    return _str(v).strip()[:n].strip()
+    """Strip and cap at n chars. An over-long string is cut at a word boundary and marked, so a
+    builder never reads a silently half-finished check or value (v0.4 cut URLs and checks)."""
+    t = _str(v).strip()
+    if len(t) <= n:
+        return t
+    cut = t[:max(1, n - len(TRUNCATED))]
+    cut = cut[:cut.rfind(" ")] if " " in cut else cut
+    return cut.rstrip(" ,;:-") + TRUNCATED
 
 
 def normalize_data_shapes(v) -> list[dict]:
@@ -114,7 +124,7 @@ def normalize_data_shapes(v) -> list[dict]:
             if not fname:
                 continue
             fields.append({"name": fname, "type": _cap_str(f.get("type"), 80),
-                           "meaning": _cap_str(f.get("meaning"), 240)})
+                           "meaning": _cap_str(f.get("meaning"), 400)})
             if len(fields) >= MAX_SHAPE_FIELDS:
                 break
         out.append({"name": name, "fields": fields, "notes": _cap_str(s.get("notes"), 400)})
@@ -131,10 +141,10 @@ def normalize_key_values(v) -> list[dict]:
     for e in v:
         if not isinstance(e, dict):
             continue
-        name, value = _cap_str(e.get("name"), 80), _cap_str(e.get("value"), 80)
+        name, value = _cap_str(e.get("name"), 120), _cap_str(e.get("value"), 300)
         if not name or not value:
             continue
-        out.append({"name": name, "value": value, "meaning": _cap_str(e.get("meaning"), 240)})
+        out.append({"name": name, "value": value, "meaning": _cap_str(e.get("meaning"), 400)})
         if len(out) >= MAX_KEY_VALUES:
             break
     return out

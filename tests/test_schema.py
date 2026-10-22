@@ -84,7 +84,8 @@ def test_normalize_data_shapes_limits_and_bad_input():
     one = nds([{"name": " " + "n" * 200, "notes": "z" * 900, "fields": [
         {"name": "f", "type": "t" * 200, "meaning": "m" * 500}, {"type": "no name"}, "bad"]}])[0]
     assert len(one["name"]) == 80 and len(one["notes"]) == 400
-    assert one["fields"] == [{"name": "f", "type": "t" * 80, "meaning": "m" * 240}]
+    assert one["fields"] == [{"name": "f", "type": "t" * 68 + " [truncated]",
+                              "meaning": "m" * 388 + " [truncated]"}]
     assert nds([{"name": "S", "fields": "oops"}]) == [{"name": "S", "fields": [], "notes": ""}]
 
 
@@ -93,8 +94,20 @@ def test_normalize_key_values_limits_and_bad_input():
 
     assert nkv(None) == nkv("x") == nkv([3, {}, {"name": "only name"}]) == []
     out = nkv([{"name": f"k{i}", "value": 5, "meaning": "m" * 500} for i in range(30)])
-    assert len(out) == 20 and out[0]["value"] == "5" and len(out[0]["meaning"]) == 240
-    assert len(nkv([{"name": "n" * 200, "value": "v" * 200}])[0]["name"]) == 80
+    assert len(out) == 20 and out[0]["value"] == "5" and len(out[0]["meaning"]) == 400
+    assert out[0]["meaning"].endswith(" [truncated]")
+    kv = nkv([{"name": "n" * 200, "value": "v" * 200}])[0]
+    assert len(kv["name"]) == 120 and kv["value"] == "v" * 200  # 200 is under the 300 cap
+
+
+def test_caps_cut_at_word_boundary_with_marker():
+    """Over-long text is never cut mid-word without saying so (v0.4 cut checks and URLs)."""
+    from reincarnate.schema import normalize_key_values as nkv
+    long = " ".join(["https://example.org/icons/" + str(i) for i in range(40)])
+    v = nkv([{"name": "icon sources", "value": long}])[0]["value"]
+    assert len(v) <= 300 and v.endswith(" [truncated]")
+    assert v[: -len(" [truncated]")] in long and long.startswith(v[: -len(" [truncated]")])
+    assert v[: -len(" [truncated]")].split(" ")[-1] in long.split(" ")  # last word is whole
 
 
 def test_normalize_dossier_applies_shapes_and_hint_lists_them():
