@@ -7,7 +7,7 @@ def test_argv(monkeypatch):
     monkeypatch.setenv("REINCARNATE_CLAUDE_BIN", "/x/claude")
     argv = cr.claude_argv("hi", model="m", max_turns=3, tools="Read", disallowed="Bash")
     assert argv[0] == "/x/claude"
-    assert argv[1:3] == ["-p", "hi"]
+    assert argv[argv.index("-p") + 1] == "hi"
     for flag, val in (("--output-format", "json"), ("--model", "m"), ("--max-turns", "3"),
                       ("--tools", "Read"), ("--disallowedTools", "Bash")):
         assert argv[argv.index(flag) + 1] == val
@@ -59,3 +59,13 @@ def test_run_timeout(monkeypatch):
 
     monkeypatch.setattr(cr, "_invoke", fake)
     assert cr.run("p", timeout=1).rc == 124
+
+
+def test_argv_is_isolated_by_default():
+    """A donor repo's CLAUDE.md / .claude/settings.json must never load: the clone is cwd."""
+    argv = cr.claude_argv("p", model="m", max_turns=1)
+    i = argv.index("--setting-sources")
+    assert argv[i + 1] == ""
+    assert "--strict-mcp-config" in argv and "--disable-slash-commands" in argv
+    assert "--setting-sources" not in cr.claude_argv(
+        "p", model="m", max_turns=1, isolated=False)

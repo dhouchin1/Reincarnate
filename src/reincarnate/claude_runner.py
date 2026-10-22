@@ -21,6 +21,20 @@ class RunResult:
     raw: dict = field(default_factory=dict)
 
 
+# Run every model call in a clean room of its own. Without these, `claude -p` loads the
+# caller's user CLAUDE.md, memory, every MCP server's tool schemas and the skills list
+# (measured: ~243k cached tokens per call on a loaded workstation vs ~3k isolated), and,
+# worse, the *donor repo's* CLAUDE.md and .claude/settings.json because comprehension runs
+# with the clone as cwd. `--setting-sources ""` loads no settings or CLAUDE.md from any
+# scope; the strict empty MCP config drops tool schemas; slash commands/skills are off.
+ISOLATION_FLAGS = (
+    "--setting-sources", "",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--no-session-persistence",
+)
+
+
 def claude_argv(
     prompt: str,
     *,
@@ -28,11 +42,15 @@ def claude_argv(
     max_turns: int,
     tools: str = "Read,Grep,Glob",
     disallowed: str = DEFAULT_DISALLOWED,
+    isolated: bool = True,
 ) -> list[str]:
-    """Build the `claude -p` argv. `$REINCARNATE_CLAUDE_BIN` overrides the binary."""
+    """Build the `claude -p` argv. `$REINCARNATE_CLAUDE_BIN` overrides the binary.
+
+    `isolated` (default) adds ISOLATION_FLAGS; turn it off only to debug the harness."""
     binary = os.environ.get("REINCARNATE_CLAUDE_BIN") or shutil.which("claude") or "claude"
     return [
         binary,
+        *(ISOLATION_FLAGS if isolated else ()),
         "-p",
         prompt,
         "--output-format",
