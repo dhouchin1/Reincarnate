@@ -1,0 +1,245 @@
+"""Dossier -> markdown, and the `export-md` command."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+
+def _esc(v) -> str:
+    return str(v or "").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _md_list(items, empty="_(none)_") -> str:
+    vals = [str(i).strip() for i in (items or []) if str(i).strip()]
+    return "\n".join(f"- {v}" for v in vals) if vals else empty
+
+
+BASIS_ORDER = ("what", "interfaces", "novelty", "acceptance", "data_shapes", "key_values")
+MAX_OMITTED_SHOWN = 20
+
+
+def basis_line(basis) -> str:
+    """`what: observed · interfaces: inferred · ...`; a missing key reads "not recorded"."""
+    basis = basis if isinstance(basis, dict) else {}
+    return " · ".join(f"{k}: {basis.get(k) or 'not recorded'}" for k in BASIS_ORDER)
+
+
+def _coverage(cov) -> list[str]:
+    if not isinstance(cov, dict) or not cov:
+        return ["_(not recorded)_", ""]
+    out = [f"- **Status:** {cov.get('status') or 'unknown'}"]
+    if cov.get("scope"):
+        out.append(f"- **Scope:** `{cov['scope']}`")
+    facets = cov.get("facets") if isinstance(cov.get("facets"), dict) else {}
+    for name, f in facets.items():
+        f = f if isinstance(f, dict) else {}
+        line = f"- **{name}:** {f.get('status') or 'unknown'}"
+        tr = f.get("truncated")
+        if isinstance(tr, dict):
+            line += f" ({tr.get('returned')} of {tr.get('total')})"
+        if str(f.get("reason") or "").strip():
+            line += f" - {str(f['reason']).strip()}"
+        out.append(line)
+    omitted = [o for o in (cov.get("omitted") or []) if isinstance(o, dict)]
+    if omitted:
+        out += ["", f"**Omitted ({len(omitted)}):**"]
+        out += [f"- `{o.get('path', '')}` - {o.get('reason', '')}"
+                for o in omitted[:MAX_OMITTED_SHOWN]]
+        if len(omitted) > MAX_OMITTED_SHOWN:
+            out.append(f"- +{len(omitted) - MAX_OMITTED_SHOWN} more")
+    return out + [""]
+
+
+def _unknowns(items) -> list[str]:
+    rows = [u for u in (items or [])
+            if isinstance(u, dict) and str(u.get("question") or "").strip()]
+    if not rows:
+        return ["_(none recorded)_", ""]
+    out = []
+    for u in rows:
+        why = str(u.get("reason") or "").strip()
+        out.append(f"- {str(u['question']).strip()}" + (f" ({why})" if why else ""))
+    return out + [""]
+
+
+def _caps(caps) -> str:
+    out: list[str] = []
+    for c in caps:
+        if not isinstance(c, dict):
+            continue
+        out.append(f"### {str(c.get('name') or 'capability').strip()}")
+        out.append(f"**Portability:** {str(c.get('portability') or '?').strip()}\n")
+        if str(c.get("what") or "").strip():
+            out.append(str(c["what"]).strip() + "\n")
+        if c.get("files"):
+            out.append("- **Files:** " + ", ".join(f"`{f}`" for f in c["files"]))
+        if c.get("dependencies"):
+            out.append("- **Dependencies:** " + ", ".join(str(d) for d in c["dependencies"]))
+        if c.get("provides"):
+            out.append("- **Provides:** " + ", ".join(f"`{t}`" for t in c["provides"]))
+        if c.get("requires"):
+            out.append("- **Requires:** " + ", ".join(f"`{t}`" for t in c["requires"]))
+        if str(c.get("novelty") or "").strip():
+            out.append(f"- **Novelty:** {str(c['novelty']).strip()}")
+        out.append(f"- **Basis:** {basis_line(c.get('basis'))}")
+        acc = [str(a).strip() for a in (c.get("acceptance") or []) if str(a).strip()]
+        if acc:
+            out.append("- **Acceptance:**")
+            out.extend(f"  - {a}" for a in acc)
+        for sh in c.get("data_shapes") or []:
+            if not isinstance(sh, dict) or not str(sh.get("name") or "").strip():
+                continue
+            out.append(f"- **Data shape `{str(sh['name']).strip()}`:**")
+            for f in sh.get("fields") or []:
+                if isinstance(f, dict) and str(f.get("name") or "").strip():
+                    typ = f" ({str(f['type']).strip()})" if str(f.get("type") or "").strip() else ""
+                    mean = str(f.get("meaning") or "").strip()
+                    out.append(f"  - `{str(f['name']).strip()}`{typ}"
+                               + (f": {mean}" if mean else ""))
+            if str(sh.get("notes") or "").strip():
+                out.append(f"  - _{str(sh['notes']).strip()}_")
+        kvs = [k for k in (c.get("key_values") or [])
+               if isinstance(k, dict) and str(k.get("name") or "").strip()]
+        if kvs:
+            out.append("- **Key values:**")
+            for k in kvs:
+                mean = str(k.get("meaning") or "").strip()
+                out.append(f"  - {str(k['name']).strip()}: `{str(k.get('value') or '').strip()}`"
+                           + (f" - {mean}" if mean else ""))
+        if str(c.get("portability_notes") or "").strip():
+            out.append(f"- **Portability notes:** {str(c['portability_notes']).strip()}")
+        if str(c.get("security_notes") or "").strip():
+            out.append(f"- **Security notes:** {str(c['security_notes']).strip()}")
+        out.append("")
+    return "\n".join(out) if out else "_(no capabilities identified)_\n"
+
+
+def render_dossier_markdown(dossier, store=None) -> str:
+    """With `store`, each capability's Basis line comes from the store, which deepen, enrich and
+    review keep current; the dossier JSON only holds the basis set at comprehension."""
+    d = dossier.data or {}
+    deps = d.get("dependencies") if isinstance(d.get("dependencies"), dict) else {}
+    sec = d.get("security") if isinstance(d.get("security"), dict) else {}
+    caps = d.get("capabilities") if isinstance(d.get("capabilities"), list) else []
+    if hasattr(store, "list_capabilities") and getattr(dossier, "id", None) is not None:
+        live = {" ".join(c.name.lower().split()): c.basis
+                for c in store.list_capabilities(dossier_id=dossier.id)}
+        caps = [{**c, "basis": live.get(" ".join(str(c.get("name", "")).lower().split()),
+                                        c.get("basis"))} if isinstance(c, dict) else c
+                for c in caps]
+    license_str = str(getattr(dossier, "license", "") or deps.get("license") or "unknown")
+    donor = f"{dossier.owner}/{dossier.repo}"
+
+    lines = [
+        "---",
+        "type: repo-dossier",
+        f"title: {donor}",
+        f"donor: {donor}",
+        f"url: {dossier.url}",
+        f"sha: {dossier.sha}",
+        f"license: {license_str}",
+        f"comprehended_at: {dossier.comprehended_at}",
+        f"source: {dossier.source}",
+        f"model: {dossier.model}",
+        "---",
+        "",
+        f"# {donor}",
+        "",
+    ]
+    if str(d.get("summary") or "").strip():
+        lines += [f"> {str(d['summary']).strip()}", ""]
+
+    lines += ["## What it does", "", str(d.get("what_it_does") or "_(none)_").strip(), ""]
+
+    lines += ["## Architecture", "", str(d.get("architecture") or "_(none)_").strip(), ""]
+    if d.get("languages"):
+        lines.append("- **Languages:** " + ", ".join(str(x) for x in d["languages"]))
+    if str(d.get("build_system") or "").strip():
+        lines.append(f"- **Build system:** {d['build_system']}")
+    if d.get("entry_points"):
+        lines.append("- **Entry points:** " + ", ".join(f"`{e}`" for e in d["entry_points"]))
+    lines.append("")
+
+    lines += ["## Coverage", "", *_coverage(d.get("coverage"))]
+    lines += ["## Unknowns", "", *_unknowns(d.get("unknowns"))]
+
+    lines += [f"## Capabilities ({len(caps)})", "", _caps(caps)]
+
+    lines += [
+        "## Dependencies & license",
+        "",
+        f"- **License:** {license_str}",
+        *([f"- **License note:** {str(deps['license_note']).strip()}"]
+          if str(deps.get("license_note") or "").strip() else []),
+        "",
+        "**Notable dependencies:**",
+        _md_list(deps.get("notable")),
+        "",
+        "**Supply-chain flags:**",
+        _md_list(deps.get("supply_chain_flags"), "_(none flagged)_"),
+        "",
+    ]
+
+    lines += [
+        "## Security review",
+        "",
+        "**Concerns:**",
+        _md_list(sec.get("concerns"), "_(none flagged)_"),
+        "",
+    ]
+    if str(sec.get("network_egress") or "").strip():
+        lines += [f"**Network egress:** {sec['network_egress']}", ""]
+    lines += [
+        "**Dangerous patterns:**",
+        _md_list(sec.get("dangerous_patterns"), "_(none flagged)_"),
+        "",
+    ]
+
+    lines += ["## Fit to your projects", ""]
+    fits = [r for r in (d.get("fit_to_projects") or []) if isinstance(r, dict)]
+    if fits:
+        lines += ["| Project | Capability | How |", "| --- | --- | --- |"]
+        lines += [
+            f"| {_esc(r.get('project'))} | {_esc(r.get('capability'))} | {_esc(r.get('how'))} |"
+            for r in fits
+        ]
+    else:
+        lines.append("_(no project-fit suggestions)_")
+    lines.append("")
+
+    lines += ["## Salvage recommendations", "", _md_list(d.get("salvage_recommendations")), ""]
+
+    lines += [
+        "## Raw analysis (machine-readable)",
+        "",
+        "```json",
+        json.dumps(d, indent=2, ensure_ascii=False),
+        "```",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def run_cli(store, args) -> dict:
+    """`export-md <owner/repo> [--out FILE]`."""
+    from reincarnate import paths
+
+    dossier = store.get_dossier(args.ref)
+    if dossier is None:
+        return {"error": f"no dossier found for {args.ref}"}
+    out = getattr(args, "out", None)
+    if out:
+        path = Path(out).expanduser()
+    else:
+        base = paths.dossiers_dir()
+        path = base / f"{dossier.owner}-{dossier.repo}.md"
+        # owner and repo come from stored data: the default path must stay in the dossier dir
+        real_base = Path(os.path.realpath(base))
+        if real_base not in Path(os.path.realpath(path)).parents:
+            return {"error": f"refusing to write outside {base}: "
+                             f"{dossier.owner}-{dossier.repo}.md (pass --out to choose a path)"}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_dossier_markdown(dossier, store), encoding="utf-8")
+    return {"path": str(path), "donor": f"{dossier.owner}/{dossier.repo}"}

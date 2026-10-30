@@ -1,0 +1,863 @@
+{
+ "aliases": {
+  "auth:brain-membership": "auth:access-control",
+  "auth:room-moderator": "auth:access-control",
+  "auth:row-access-control": "auth:access-control",
+  "auth:session-security": "auth:session",
+  "auth:two-factor": "auth:session",
+  "config:adapter-path": "config:backend-selection",
+  "config:agent-context": "config:note-template",
+  "config:apk-path": "config:storage-path",
+  "config:backoff-params": "config:retry-policy",
+  "config:brain-policy": "config:plugin-config",
+  "config:buffer-size": null,
+  "config:build-flags": "config:plugin-config",
+  "config:channel-weights": "config:threshold-config",
+  "config:coordinator-endpoint": "config:service-endpoint",
+  "config:crawl-config": "config:crawl-rules",
+  "config:cron-schedule": "config:schedule",
+  "config:crypto-secrets": "config:auth-credentials",
+  "config:domain-blocklist": "config:crawl-rules",
+  "config:embedding-provider": "config:backend-selection",
+  "config:hidden-service-dir": "config:storage-path",
+  "config:ip-target-list": "config:service-list",
+  "config:job-schedule": "config:schedule",
+  "config:llm-credentials": "config:auth-credentials",
+  "config:lock-path": "config:storage-path",
+  "config:lock-timeout": null,
+  "config:media-directories": "config:storage-path",
+  "config:module-registry": "config:plugin-config",
+  "config:peer-credentials": "config:peer-identity",
+  "config:refresh-interval": "config:schedule",
+  "config:retry-limits": "config:retry-policy",
+  "config:risk-limits": "config:threshold-config",
+  "config:risk-policy": "config:threshold-config",
+  "config:room-endpoint": "config:service-endpoint",
+  "config:scrape-backends": "config:backend-selection",
+  "config:search-backend": "config:backend-selection",
+  "config:search-weights": "config:threshold-config",
+  "config:storage-adapters": "config:backend-selection",
+  "config:token-namespace": null,
+  "config:training-config": "config:model-hyperparams",
+  "config:tunnel-endpoint": "config:service-endpoint",
+  "config:url-filters": "config:crawl-rules",
+  "config:vapid-keys": "config:auth-credentials",
+  "config:vault-dir": "config:storage-path",
+  "config:word-count-threshold": "config:threshold-config",
+  "data:activity-record": null,
+  "data:api-operation": null,
+  "data:arbitrage-opportunity": "data:trade-decision",
+  "data:arch-metrics": "data:code-metrics",
+  "data:artist-metadata": null,
+  "data:async-context": null,
+  "data:attention-output": null,
+  "data:audio-stream": null,
+  "data:backoff-interval": null,
+  "data:backoff-policy": null,
+  "data:batch-results": null,
+  "data:browser-route-filter": null,
+  "data:cache-cleanup-result": "data:disk-usage",
+  "data:change-event": null,
+  "data:cli-records": null,
+  "data:collection-size": null,
+  "data:command-result": "data:execution-result",
+  "data:comparison-result": null,
+  "data:concurrency-control": null,
+  "data:crawl-queue": "data:crawl-results",
+  "data:deeplink-url": null,
+  "data:delivery-metrics": "data:code-metrics",
+  "data:depth-encoding": null,
+  "data:dns-wordlist": null,
+  "data:doc-health-score": "data:doc-health",
+  "data:doc-section": "data:document-text",
+  "data:dom-selection": null,
+  "data:embedding-adapter": "data:llm-adapter",
+  "data:encoded-id": null,
+  "data:encoded-response": null,
+  "data:error-details": null,
+  "data:escaped-html": null,
+  "data:extracted-url-list": "data:extracted-links",
+  "data:ffn-output": null,
+  "data:fifo-queue": null,
+  "data:file-hash": null,
+  "data:format-buffer": null,
+  "data:graph-neighborhood": null,
+  "data:grouped-records": null,
+  "data:halting-weights": null,
+  "data:header-response-diff": "data:vuln-findings",
+  "data:hidden-state": null,
+  "data:http-headers": "data:browser-fingerprint",
+  "data:inferred-graph-edges": null,
+  "data:integer-string": null,
+  "data:iterable-sequence": null,
+  "data:key-mapping": null,
+  "data:link-check-result": "data:doc-health",
+  "data:llm-task-result": "data:llm-response",
+  "data:llms-index": null,
+  "data:located-element": null,
+  "data:lock-expiry": null,
+  "data:lock-state": null,
+  "data:log-query-results": "data:search-results",
+  "data:markdown-content": "data:document-text",
+  "data:market-pairs": "data:market-price",
+  "data:market-relationships": null,
+  "data:message-content": null,
+  "data:message-search-results": "data:search-results",
+  "data:metrics-history": "data:system-metrics",
+  "data:metrics-query-results": "data:system-metrics",
+  "data:metrics-stream": "data:system-metrics",
+  "data:model-coefficients": "data:model-output",
+  "data:model-fit-statistics": "data:model-output",
+  "data:note-existence-map": null,
+  "data:onion-address": null,
+  "data:operation-history": null,
+  "data:parameterized-url-list": "data:crawl-results",
+  "data:parsed-html": "data:scraped-page",
+  "data:parsed-url": null,
+  "data:performance-metrics": "data:system-metrics",
+  "data:permission-request": null,
+  "data:plain-text": null,
+  "data:playlist-contents": null,
+  "data:price-history": "data:market-price",
+  "data:price-sensitivity": "data:market-price",
+  "data:process-alert": null,
+  "data:protection-registry": null,
+  "data:queue-control": null,
+  "data:queue-front": null,
+  "data:queue-state": "data:task-status",
+  "data:ranked-results": "data:search-results",
+  "data:raw-document": "data:document-text",
+  "data:raw-source": "data:document-text",
+  "data:record-collection": null,
+  "data:redacted-response": null,
+  "data:reflection-findings": "data:vuln-findings",
+  "data:regret-clusters": "data:scored-memory",
+  "data:resolved-commands": null,
+  "data:resolved-outcome": null,
+  "data:resolved-subdomain-list": "data:subdomain-list",
+  "data:retrieval-confidence": "data:scored-memory",
+  "data:retry-error-signal": null,
+  "data:retry-result": null,
+  "data:risk-decision": "data:trade-decision",
+  "data:room-operations": null,
+  "data:root-cause-analysis": "data:research-report",
+  "data:safe-markup": null,
+  "data:search-signals": "data:search-results",
+  "data:section-content": "data:document-text",
+  "data:section-freshness": "data:doc-health",
+  "data:section-role": "data:doc-health",
+  "data:sequence-embeddings": "data:embedding-vector",
+  "data:signed-payload": null,
+  "data:skill-metadata": "data:skill-definition",
+  "data:structural-scores": "data:code-metrics",
+  "data:swarm-event": null,
+  "data:swimlane-layout": null,
+  "data:task-executor": null,
+  "data:tile-position": null,
+  "data:timer-interface": null,
+  "data:timestamp": null,
+  "data:tls-certificate": null,
+  "data:token-timestamp": null,
+  "data:tool-response": "data:llm-response",
+  "data:trade-proposal": "data:trade-decision",
+  "data:training-corpus": null,
+  "data:typed-interface": null,
+  "data:unique-id": null,
+  "data:web-content": "data:scraped-page",
+  "data:wiki-page": "data:document-text",
+  "data:word-count": null,
+  "data:word-count-dots": null,
+  "event:agent-turn-inject": "event:agent-response",
+  "event:cache-cleared": "event:file-changed",
+  "event:card-reordered": "event:input-event",
+  "event:channel-message": "event:message-created",
+  "event:clipboard-changed": "event:input-event",
+  "event:config-drift": "event:alert-raised",
+  "event:doc-file-indexed": "event:file-changed",
+  "event:engine-state-change": "event:task-updated",
+  "event:file-added": "event:file-changed",
+  "event:file-deleted": "event:file-changed",
+  "event:hook-dispatch": "event:plugin-hook",
+  "event:input-synthesized": "event:input-event",
+  "event:io-ready": null,
+  "event:ipc-command": "event:input-event",
+  "event:library-scanned": "event:file-changed",
+  "event:module-completed": "event:task-updated",
+  "event:note-opened": "event:input-event",
+  "event:page-crawled": "event:file-changed",
+  "event:participant-moderated": null,
+  "event:plugin-extension-point": "event:plugin-hook",
+  "event:plugin-hook-executed": "event:plugin-hook",
+  "event:process-alert": "event:alert-raised",
+  "event:research-progress": "event:task-updated",
+  "event:retry-attempt": null,
+  "event:room-message": "event:message-created",
+  "event:session-start": "event:agent-started",
+  "event:spec-approved": "event:verification-passed",
+  "event:state-transition": "event:task-updated",
+  "event:task-complete": "event:task-updated",
+  "event:telemetry": "event:metric-recorded",
+  "event:test-gate": "event:verification-passed",
+  "event:toolbar-opened": "event:input-event",
+  "event:track-scrobbled": null,
+  "http:audio-stream": "http:media-stream",
+  "http:radio-proxy": "http:reverse-proxy",
+  "http:scrape-endpoint": "http:api-server",
+  "http:search-endpoint": "http:api-server",
+  "http:security-headers": null,
+  "http:subdomain-router": "http:reverse-proxy",
+  "http:tunnel-relay": "http:reverse-proxy",
+  "schedule:agent-loop": "schedule:event-loop",
+  "schedule:debounced-execution": null,
+  "schedule:retry-ticker": "schedule:periodic-job",
+  "store:activity-stream": "store:audit-log",
+  "store:agent-checkpoint": "store:snapshot-records",
+  "store:agent-registry": "store:node-registry",
+  "store:app-tables": "store:database",
+  "store:archive-results": "store:snapshot-records",
+  "store:auth-session": "store:session-registry",
+  "store:brain-snapshot": "store:snapshot-records",
+  "store:cache-entry": "store:cache",
+  "store:client-cache": "store:cache",
+  "store:crawl-checkpoint": "store:snapshot-records",
+  "store:cycle-registry": "store:ticket-registry",
+  "store:daily-note-index": "store:document-registry",
+  "store:depth-kv-cache": "store:cache",
+  "store:design-document": "store:document-registry",
+  "store:doc-section-index": "store:search-index",
+  "store:document-versions": "store:document-registry",
+  "store:element-fingerprint": "store:cache",
+  "store:embedding-cache": "store:search-index",
+  "store:engine-state": "store:snapshot-records",
+  "store:external-metadata": "store:cache",
+  "store:isolated-workspace": "store:session-registry",
+  "store:kv-cache": "store:cache",
+  "store:login-attempts": "store:user-registry",
+  "store:machine-registry": "store:node-registry",
+  "store:memory-nodes": "store:memory-graph",
+  "store:message-history": "store:conversation-messages",
+  "store:model-checkpoint": "store:snapshot-records",
+  "store:model-state": "store:snapshot-records",
+  "store:note-content-cache": "store:cache",
+  "store:note-metadata-cache": "store:cache",
+  "store:now-playing-metadata": "store:media-library",
+  "store:offline-cache": "store:cache",
+  "store:operation-log": "store:audit-log",
+  "store:participant-registry": "store:room-registry",
+  "store:peer-registry": "store:node-registry",
+  "store:playlist-rules": "store:media-library",
+  "store:podcast-episodes": "store:media-library",
+  "store:progress-ledger": "store:task-graph",
+  "store:push-subscriptions": "store:user-registry",
+  "store:radio-stations": "store:media-library",
+  "store:ranking-events": "store:audit-log",
+  "store:recurring-bills": "store:recurrence-config",
+  "store:risk-hash-db": "store:cache",
+  "store:robots-cache": "store:cache",
+  "store:runtime-calls": "store:audit-log",
+  "store:rw-lock-state": "store:file-lock",
+  "store:scan-cache": "store:cache",
+  "store:search-telemetry": "store:audit-log",
+  "store:selector-cache": "store:cache",
+  "store:song-catalog": "store:media-library",
+  "store:spec-document": "store:document-registry",
+  "store:swarm-state": "store:snapshot-records",
+  "store:symbol-index": "store:search-index",
+  "store:task-audit-log": "store:audit-log",
+  "store:task-list": "store:task-graph",
+  "store:ticket-relations": "store:ticket-registry",
+  "store:unique-id": "store:database",
+  "store:user-credentials": "store:user-registry",
+  "store:user-records": "store:user-registry",
+  "store:wiki-index": "store:search-index",
+  "store:wiki-pages": "store:document-registry",
+  "ui:audio-visualizer": "ui:media-player",
+  "ui:button-tooltips": null,
+  "ui:color-picker": "ui:picker",
+  "ui:command-icons": null,
+  "ui:diagnostics-panel": "ui:dashboard-panel",
+  "ui:icon-picker": "ui:picker",
+  "ui:log-output": "ui:cli-tool",
+  "ui:offline-player": "ui:media-player",
+  "ui:room-dashboard": "ui:dashboard-panel",
+  "ui:selection-menu": "ui:cli-tool",
+  "ui:task-graph-view": "ui:graph-view",
+  "ui:toolbar-layout": null,
+  "ui:usage-help": "ui:cli-tool"
+ },
+ "source": "forge-studio seed/catalog.json (2026-10-06)",
+ "tokens": {
+  "auth:access-control": {
+   "definition": "An authorization decision gating a resource by role, row ownership, group/tenant membership, or moderator status.",
+   "platform": false
+  },
+  "auth:api-token": {
+   "definition": "A bearer/API token credential for programmatic (non-interactive) access to an API.",
+   "platform": false
+  },
+  "auth:peer-identity": {
+   "definition": "The cryptographic identity of a remote node/peer (TOFU fingerprint, key) used to authenticate machine-to-machine links.",
+   "platform": false
+  },
+  "auth:session": {
+   "definition": "An interactive login session and its security lifecycle (CSRF, throttling, two-factor, session cookies).",
+   "platform": false
+  },
+  "auth:user-identity": {
+   "definition": "An authenticated end-user principal (who is logged in), handed to features that personalize or authorize per user.",
+   "platform": false
+  },
+  "config:auth-credentials": {
+   "definition": "Operator-supplied secrets/credentials for authenticating to an external service or auth/LLM backend.",
+   "platform": false
+  },
+  "config:backend-selection": {
+   "definition": "Which pluggable backend/provider to use for LLM, embedding, search, scraping, or storage.",
+   "platform": false
+  },
+  "config:browser-profile": {
+   "definition": "Headless-browser session and fingerprint settings (stealth, anti-bot).",
+   "platform": false
+  },
+  "config:concurrency-limit": {
+   "definition": "Caps on concurrent operations or request rate.",
+   "platform": false
+  },
+  "config:crawl-rules": {
+   "definition": "Crawl scope, robots handling, URL filters, and domain blocking rules.",
+   "platform": false
+  },
+  "config:domain-wildcard": {
+   "definition": "Domain, wildcard, and routing-domain settings for proxying or request filtering.",
+   "platform": false
+  },
+  "config:locale-settings": {
+   "definition": "Locale, timezone, and calendar formatting settings.",
+   "platform": false
+  },
+  "config:model-hyperparams": {
+   "definition": "ML model/training hyperparameters and architecture settings.",
+   "platform": false
+  },
+  "config:note-template": {
+   "definition": "A template or injected context block used to scaffold notes or agent prompts.",
+   "platform": false
+  },
+  "config:peer-identity": {
+   "definition": "Static peer/node identity and key material configured for a mesh/tunnel.",
+   "platform": false
+  },
+  "config:plugin-config": {
+   "definition": "Enablement, gating, and policy settings for plugins/modules/features.",
+   "platform": false
+  },
+  "config:port-mapping": {
+   "definition": "A network port-forwarding map between local and remote endpoints.",
+   "platform": false
+  },
+  "config:proxy-list": {
+   "definition": "A list of proxy servers to rotate outbound requests through.",
+   "platform": false
+  },
+  "config:retry-policy": {
+   "definition": "Retry and backoff policy settings (limits, intervals, jitter).",
+   "platform": false
+  },
+  "config:schedule": {
+   "definition": "Cron/interval/refresh schedule settings telling a runner when to fire.",
+   "platform": false
+  },
+  "config:service-endpoint": {
+   "definition": "The address/URL of a remote service (coordinator, room, tunnel, API) this component should dial.",
+   "platform": false
+  },
+  "config:service-list": {
+   "definition": "A configured list of services/apps/targets to monitor, integrate, or probe.",
+   "platform": false
+  },
+  "config:storage-path": {
+   "definition": "A filesystem path where the component reads or writes its data/state/locks.",
+   "platform": false
+  },
+  "config:threshold-config": {
+   "definition": "Alert/risk/scoring thresholds and signal weights the component compares against.",
+   "platform": false
+  },
+  "config:tls-certificate": {
+   "definition": "TLS certificate and private-key material supplied to serve or verify HTTPS/mTLS.",
+   "platform": false
+  },
+  "data:agent-context": {
+   "definition": "Bootstrap context/state injected into an agent at session start.",
+   "platform": false
+  },
+  "data:agent-routing": {
+   "definition": "A routing decision selecting which agent/profile handles a request.",
+   "platform": false
+  },
+  "data:agent-session": {
+   "definition": "A handle to a running agent/ACP session.",
+   "platform": false
+  },
+  "data:alert-config": {
+   "definition": "An alert-rule definition with notification routing.",
+   "platform": false
+  },
+  "data:browser-fingerprint": {
+   "definition": "A generated browser fingerprint and request headers for stealth fetching.",
+   "platform": false
+  },
+  "data:calendar-sources": {
+   "definition": "Aggregated calendar event sources for a view.",
+   "platform": false
+  },
+  "data:cash-flow-projection": {
+   "definition": "A paycheck-bucketed cash-flow/budget projection.",
+   "platform": false
+  },
+  "data:code-metrics": {
+   "definition": "Code-health and architecture metrics (radar, Gini, delivery, structural scores).",
+   "platform": false
+  },
+  "data:conversation-diff": {
+   "definition": "A diff/history of a conversation or git-native transcript.",
+   "platform": false
+  },
+  "data:crawl-results": {
+   "definition": "Pages/URLs discovered and queued by a crawl.",
+   "platform": false
+  },
+  "data:dashboard-content": {
+   "definition": "Extracted dashboard content/JSONPath results for context windows.",
+   "platform": false
+  },
+  "data:dashboard-schema": {
+   "definition": "A dashboard/widget schema describing panels and layout.",
+   "platform": false
+  },
+  "data:db-snapshot": {
+   "definition": "A database export/import snapshot payload.",
+   "platform": false
+  },
+  "data:dead-code-report": {
+   "definition": "A report of unreferenced/dead code from reachability analysis.",
+   "platform": false
+  },
+  "data:disk-usage": {
+   "definition": "Disk-usage and cleanable-space measurements and cleanup results.",
+   "platform": false
+  },
+  "data:doc-health": {
+   "definition": "Documentation health, freshness, drift, and link-check results per section.",
+   "platform": false
+  },
+  "data:document-text": {
+   "definition": "Parsed document text and sections extracted from a file or page.",
+   "platform": false
+  },
+  "data:embedding-vector": {
+   "definition": "A semantic embedding vector for similarity/retrieval.",
+   "platform": false
+  },
+  "data:execution-result": {
+   "definition": "The result of running a command/module/pipeline step.",
+   "platform": false
+  },
+  "data:extracted-links": {
+   "definition": "Links/URLs harvested from content for crawling or enrichment.",
+   "platform": false
+  },
+  "data:feature-flags": {
+   "definition": "Capability/feature gating flags controlling exposed behavior.",
+   "platform": false
+  },
+  "data:health-score": {
+   "definition": "A computed weighted health/quality score.",
+   "platform": false
+  },
+  "data:http-client": {
+   "definition": "A configured HTTP client/transport-middleware chain for requests.",
+   "platform": false
+  },
+  "data:http-response": {
+   "definition": "An HTTP response payload returned from a fetch.",
+   "platform": false
+  },
+  "data:icon-catalog": {
+   "definition": "A catalog of icons from one or more sources.",
+   "platform": false
+  },
+  "data:implementation-plan": {
+   "definition": "A build/implementation plan or spec decomposed into steps.",
+   "platform": false
+  },
+  "data:import-graph": {
+   "definition": "A code import/dependency graph for structural analysis.",
+   "platform": false
+  },
+  "data:live-url-list": {
+   "definition": "URLs confirmed live by HTTP probing.",
+   "platform": false
+  },
+  "data:llm-adapter": {
+   "definition": "A pluggable LLM/embedding provider adapter handle.",
+   "platform": false
+  },
+  "data:llm-response": {
+   "definition": "An LLM completion/tool response for downstream use.",
+   "platform": false
+  },
+  "data:machine-info": {
+   "definition": "Machine fingerprint/identity and binary detection info.",
+   "platform": false
+  },
+  "data:market-price": {
+   "definition": "Market price/quote, fair value, sensitivity, and history data.",
+   "platform": false
+  },
+  "data:model-output": {
+   "definition": "Inference output or fitted coefficients/statistics from an ML/quant model.",
+   "platform": false
+  },
+  "data:next-run-time": {
+   "definition": "The next computed fire time for a scheduled job.",
+   "platform": false
+  },
+  "data:note-tags": {
+   "definition": "The frontmatter tags extracted for a specific note.",
+   "platform": false
+  },
+  "data:page-screenshot": {
+   "definition": "A rendered screenshot of a web page.",
+   "platform": false
+  },
+  "data:parsed-expense": {
+   "definition": "A parsed expense/transaction entry from quick-add input.",
+   "platform": false
+  },
+  "data:peer-connection": {
+   "definition": "An established peer-to-peer/mesh connection.",
+   "platform": false
+  },
+  "data:portfolio-positions": {
+   "definition": "Current portfolio holdings and risk exposure.",
+   "platform": false
+  },
+  "data:proxy-config": {
+   "definition": "Proxy configuration/rotation state for outbound requests.",
+   "platform": false
+  },
+  "data:recurrence-schedule": {
+   "definition": "Computed recurrence occurrences projected from a rule.",
+   "platform": false
+  },
+  "data:research-report": {
+   "definition": "A synthesized research/analysis/root-cause report.",
+   "platform": false
+  },
+  "data:scored-memory": {
+   "definition": "Memory/retrieval results with confidence/importance scores and regret signals.",
+   "platform": false
+  },
+  "data:scraped-page": {
+   "definition": "Fetched/scraped web page content extracted from a URL.",
+   "platform": false
+  },
+  "data:search-results": {
+   "definition": "Ranked search/query results handed to a UI or caller.",
+   "platform": false
+  },
+  "data:service-status": {
+   "definition": "A health/status feed describing whether monitored services are up.",
+   "platform": false
+  },
+  "data:skill-definition": {
+   "definition": "A skill/slash-command definition with its metadata.",
+   "platform": false
+  },
+  "data:structured-extract": {
+   "definition": "Structured JSON extracted from unstructured input via an LLM.",
+   "platform": false
+  },
+  "data:subdomain-list": {
+   "definition": "Discovered/resolved subdomains for a target.",
+   "platform": false
+  },
+  "data:system-metrics": {
+   "definition": "Collected system/performance metric samples and time series.",
+   "platform": false
+  },
+  "data:tag-catalog": {
+   "definition": "The catalog of tags available across content.",
+   "platform": false
+  },
+  "data:task-dependency": {
+   "definition": "A task dependency DAG with a ready queue.",
+   "platform": false
+  },
+  "data:task-status": {
+   "definition": "The runtime status/state of a task, job, or queue.",
+   "platform": false
+  },
+  "data:trade-decision": {
+   "definition": "A trade decision/proposal including risk and arbitrage opportunities.",
+   "platform": false
+  },
+  "data:tunnel-connection": {
+   "definition": "An established tunnel connection (SSH/QUIC/WebSocket) to relay traffic.",
+   "platform": false
+  },
+  "data:url-risk-status": {
+   "definition": "A risk/threat verdict for a URL or resource.",
+   "platform": false
+  },
+  "data:virtual-network": {
+   "definition": "An overlay/virtual network of connected peers.",
+   "platform": false
+  },
+  "data:vuln-findings": {
+   "definition": "Security scan findings (injection, headers, reflection).",
+   "platform": false
+  },
+  "data:workflow-config": {
+   "definition": "A workflow/pipeline definition loaded from config.",
+   "platform": false
+  },
+  "event:agent-response": {
+   "definition": "Fires when an agent produces a response/turn to be consumed or injected.",
+   "platform": false
+  },
+  "event:agent-started": {
+   "definition": "Fires when an agent run/session/turn begins, for bootstrap or context injection.",
+   "platform": false
+  },
+  "event:alert-raised": {
+   "definition": "Fires when a threshold breach, process alert, or config drift triggers an alert.",
+   "platform": false
+  },
+  "event:file-changed": {
+   "definition": "Fires when a file/document is added, deleted, indexed, scanned, or crawled.",
+   "platform": false
+  },
+  "event:input-event": {
+   "definition": "A user input / UI interaction event (click, key, clipboard, reorder, open).",
+   "platform": false
+  },
+  "event:knowledge-published": {
+   "definition": "Fires when new knowledge/document output is published to downstream integrations.",
+   "platform": false
+  },
+  "event:message-created": {
+   "definition": "Fires when a chat/room/channel message is created, for consumers that process or fan out messages.",
+   "platform": false
+  },
+  "event:metric-recorded": {
+   "definition": "Fires when a telemetry metric/trace is recorded, for observability consumers.",
+   "platform": false
+  },
+  "event:plugin-hook": {
+   "definition": "A plugin/extension hook point dispatched for registered handlers.",
+   "platform": false
+  },
+  "event:price-update": {
+   "definition": "Fires when a market price/quote updates.",
+   "platform": false
+  },
+  "event:service-down": {
+   "definition": "Fires when a monitored service is detected down/unhealthy.",
+   "platform": false
+  },
+  "event:service-up": {
+   "definition": "Fires when a monitored service recovers to healthy.",
+   "platform": false
+  },
+  "event:task-updated": {
+   "definition": "Fires when a task/job/state-machine changes state or completes.",
+   "platform": false
+  },
+  "event:trade-executed": {
+   "definition": "Fires when a trade/order is executed.",
+   "platform": false
+  },
+  "event:trade-signal": {
+   "definition": "Fires when a trading strategy emits a buy/sell signal.",
+   "platform": false
+  },
+  "event:verification-passed": {
+   "definition": "Fires when a gate/test/spec verification passes, allowing a workflow to proceed.",
+   "platform": false
+  },
+  "http:api-server": {
+   "definition": "An HTTP server/router exposing application endpoints.",
+   "platform": true
+  },
+  "http:media-stream": {
+   "definition": "An HTTP endpoint that streams media (audio/video) with transcoding or live metadata.",
+   "platform": false
+  },
+  "http:outbound-client": {
+   "definition": "An outbound HTTP client feature that calls external services on the app's behalf.",
+   "platform": false
+  },
+  "http:reverse-proxy": {
+   "definition": "A reverse proxy / tunnel relay / subdomain router forwarding inbound traffic to a backend.",
+   "platform": false
+  },
+  "http:status-endpoint": {
+   "definition": "A health/status HTTP endpoint reporting liveness and component state.",
+   "platform": false
+  },
+  "notify:push": {
+   "definition": "Delivers a push/remote notification to a user or device.",
+   "platform": false
+  },
+  "schedule:event-loop": {
+   "definition": "An async event loop / reactor driving event-driven or long-running agent work.",
+   "platform": false
+  },
+  "schedule:periodic-job": {
+   "definition": "A recurring scheduled job/cron runner that fires work on an interval.",
+   "platform": false
+  },
+  "store:alert-rules": {
+   "definition": "Configured alert/notification rules with routing.",
+   "platform": false
+  },
+  "store:audit-log": {
+   "definition": "An append-only audit/activity/operation log of what happened.",
+   "platform": false
+  },
+  "store:brain-registry": {
+   "definition": "A multi-tenant registry of isolated brains/workspaces.",
+   "platform": false
+  },
+  "store:cache": {
+   "definition": "A general-purpose cache of computed/fetched values keyed for reuse.",
+   "platform": false
+  },
+  "store:conversation-messages": {
+   "definition": "Stored chat/message history for rooms or conversations.",
+   "platform": false
+  },
+  "store:crawl-state": {
+   "definition": "A crawler's frontier/queue and visited state.",
+   "platform": false
+  },
+  "store:database": {
+   "definition": "A general database connection/engine backing application tables.",
+   "platform": true
+  },
+  "store:document-registry": {
+   "definition": "A collection of documents/notes/wiki/spec pages with versions.",
+   "platform": false
+  },
+  "store:file-attachments": {
+   "definition": "A store of binary file attachments.",
+   "platform": false
+  },
+  "store:file-lock": {
+   "definition": "Advisory file/record lock state (exclusive or reader-writer) for mutual exclusion.",
+   "platform": false
+  },
+  "store:layout-config": {
+   "definition": "Persisted dashboard/UI layout and tile-position configuration.",
+   "platform": false
+  },
+  "store:market-relationships": {
+   "definition": "A graph of relationships between tradable markets/instruments.",
+   "platform": false
+  },
+  "store:media-library": {
+   "definition": "A catalog of media items (songs, podcasts, stations, playlists) and now-playing state.",
+   "platform": false
+  },
+  "store:memory-graph": {
+   "definition": "A knowledge/memory graph of nodes and typed edges.",
+   "platform": false
+  },
+  "store:node-registry": {
+   "definition": "A registry of peers/nodes/machines/agents participating in a network.",
+   "platform": false
+  },
+  "store:recurrence-config": {
+   "definition": "Stored recurrence rules and recurring entries (bills, notes, events).",
+   "platform": false
+  },
+  "store:room-registry": {
+   "definition": "A registry of rooms/channels and their participants.",
+   "platform": false
+  },
+  "store:search-index": {
+   "definition": "A full-text / semantic / symbol / section index queried for retrieval.",
+   "platform": false
+  },
+  "store:service-registry": {
+   "definition": "A registry of services/apps/integrations with their endpoints and metadata.",
+   "platform": false
+  },
+  "store:session-registry": {
+   "definition": "Active runtime sessions/workspaces with idle/TTL lifecycle.",
+   "platform": false
+  },
+  "store:snapshot-records": {
+   "definition": "Saved snapshots/checkpoints of state, models, or runs for restore.",
+   "platform": false
+  },
+  "store:task-graph": {
+   "definition": "A task DAG / task list / progress ledger of ready and pending work.",
+   "platform": false
+  },
+  "store:ticket-registry": {
+   "definition": "A tracker of tickets/issues/cycles and their relationships.",
+   "platform": false
+  },
+  "store:trade-history": {
+   "definition": "A record of executed trades and portfolio positions over time.",
+   "platform": false
+  },
+  "store:user-registry": {
+   "definition": "An account store of users, credentials, login attempts, and subscriptions.",
+   "platform": false
+  },
+  "ui:browser-preview": {
+   "definition": "An embedded browser/webview preview pane.",
+   "platform": false
+  },
+  "ui:calendar-panel": {
+   "definition": "A calendar/month-grid view of dated events.",
+   "platform": false
+  },
+  "ui:chat-assistant": {
+   "definition": "A conversational chat/assistant UI surface.",
+   "platform": false
+  },
+  "ui:cli-tool": {
+   "definition": "A command-line / TUI interface with help, menus, and log output.",
+   "platform": false
+  },
+  "ui:dashboard-panel": {
+   "definition": "A status/diagnostics panel rendering live metrics or room/service state.",
+   "platform": false
+  },
+  "ui:graph-view": {
+   "definition": "A node/edge or DAG graph visualization surface.",
+   "platform": false
+  },
+  "ui:media-player": {
+   "definition": "An audio/video player UI including visualizers and offline playback.",
+   "platform": false
+  },
+  "ui:picker": {
+   "definition": "A modal picker/selector (icons, colors, fuzzy search).",
+   "platform": false
+  },
+  "ui:tile-grid": {
+   "definition": "A draggable grid of tiles/cards for a dashboard home.",
+   "platform": false
+  },
+  "ui:web-shell": {
+   "definition": "The web application page shell/layout that hosts feature views.",
+   "platform": true
+  }
+ }
+}

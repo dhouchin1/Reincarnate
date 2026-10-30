@@ -1,0 +1,7 @@
+.venv/
+.local-data/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.claude/agent-memory/

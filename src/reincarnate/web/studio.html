@@ -1,0 +1,1240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reincarnate: design your app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+:root{--ink:#18181B;--ink2:#3F3F46;--muted:#52525B;--accent:#1D4ED8;--accent-d:#1E3A8A;--green:#15803D;--line:#DEDED9;--bg:#F6F6F3;--card:#fff}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
+button,input,textarea,select{font:inherit;color:inherit}
+code,pre,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--accent)}a:hover{color:var(--accent-d)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h1{margin:0;font-size:24px}
+h2{margin:0;font-size:16px}
+h3{margin:0;font-size:14px}
+.wrap{max-width:1376px;margin:0 auto;padding:22px 32px 44px;display:flex;flex-direction:column;gap:16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.spread{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.stack{display:flex;flex-direction:column;gap:8px;min-width:0}
+.title{font-size:22px;font-weight:700}
+.muted{color:var(--muted);font-size:12px}
+.sm{font-size:12px;color:var(--ink2);overflow-wrap:anywhere}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px;font-size:12px;border:1px solid var(--line);background:#fff;color:var(--ink2);max-width:100%;overflow-wrap:anywhere}
+nav.studio{display:flex;flex-wrap:wrap;gap:8px}
+.nav{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border-radius:10px;font-weight:500;border:1px solid #C9C9C3;background:#fff;color:#27272A;text-decoration:none}
+.nav .num{display:inline-flex;width:22px;height:22px;border-radius:11px;background:#E7E7E2;font-size:12px;align-items:center;justify-content:center}
+.nav.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:600}
+.nav.on .num{background:#fff;color:var(--ink)}
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.stp{display:inline-flex;align-items:center;min-height:36px;padding:6px 12px;border-radius:999px;border:1px solid #C9C9C3;background:#fff;color:#27272A;text-decoration:none}
+.stp.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.stp.off{color:var(--muted);background:#F1F1EE}
+.sep{color:#A1A1AA}
+.banner{border-radius:10px;padding:12px 14px;font-size:13px;border:1px solid;overflow-wrap:anywhere}
+.banner.warn{background:#FFF7E6;border-color:#F1D49B;color:#5C3A00}
+.banner.err{background:#FDECEC;border-color:#F3B4B4;color:#7F1D1D}
+.banner.info{background:#EEF2FF;border-color:#C7D2FE;color:var(--accent-d)}
+.banner.ok{background:#ECFDF3;border-color:#A7E3BE;color:#14532D}
+.cols3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.25fr);gap:14px;align-items:start}
+section.card,article.card,div.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+section.card.gen{border:2px solid var(--accent);padding:16px 18px;gap:12px}
+.scroll{display:flex;flex-direction:column;gap:6px;max-height:640px;overflow-y:auto;padding-right:2px}
+label.l{font-size:13px;font-weight:600}
+textarea,input[type=text],input[type=search],select{border:1px solid #C9C9C3;border-radius:8px;padding:8px 10px;background:#fff;width:100%;min-width:0;min-height:40px}
+textarea{min-height:64px;resize:vertical;border-radius:10px}
+select{width:auto;flex:1 1 140px}
+.check{display:flex;gap:10px;align-items:center;min-height:44px;font-size:13px}
+.check input{width:20px;height:20px;flex:none}
+.btn{min-height:44px;padding:8px 20px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+.btn:hover:not(:disabled){background:var(--accent-d)}
+.btn.green{background:var(--green);border-color:var(--green)}
+.btn.ghost{background:#fff;color:var(--accent)}
+.btn.ghost:hover:not(:disabled){background:#EEF2FF;color:var(--accent-d)}
+.btn:disabled{background:#E7E7E2;border-color:#C9C9C3;color:var(--muted);cursor:not-allowed}
+.small{min-height:40px;padding:6px 14px;border-radius:8px;border:1px solid #C9C9C3;background:#fff;cursor:pointer;font-weight:600;font-size:13px}
+.small:disabled{opacity:.55;cursor:not-allowed}
+.small.danger{border-color:#B91C1C;color:#7F1D1D}
+.small.mini{min-height:36px;font-size:12px;font-weight:500;padding:4px 10px}
+.err-inline{color:#B91C1C;font-size:13px;margin:0;overflow-wrap:anywhere}
+.pillbtn{min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid #C9C9C3;background:#fff;cursor:pointer;font-size:13px}
+.pillbtn[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid #EFEFEA;padding-bottom:6px}
+.tabb{min-height:40px;padding:6px 12px;border:none;border-bottom:2px solid transparent;background:none;color:var(--muted);cursor:pointer;font-size:13px}
+.tabb[aria-selected=true]{border-bottom-color:var(--accent);color:var(--accent-d);font-weight:600}
+.nov{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;display:inline-block}
+.nov.d{background:var(--accent-d);color:#fff}.nov.p{background:#DBEAFE;color:var(--accent-d)}.nov.c{background:#E7E7E2;color:var(--ink2)}.nov.u{background:#fff;color:var(--muted);border:1px solid #C9C9C3}
+.prow{display:flex;gap:8px;align-items:flex-start;padding:8px;border-radius:8px;border:1px solid #EFEFEA;background:#fff;min-width:0}
+.prow.sel{border-color:var(--accent)}
+.prow.in{background:#F5F8FF}
+.prow .open{flex:1;min-width:0;text-align:left;background:none;border:none;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-height:44px}
+.prow .nm{font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.addb{flex:none;width:44px;height:44px;border-radius:8px;border:1px solid var(--accent);background:#fff;color:var(--accent);cursor:pointer;font-weight:700}
+.addb.in{border-color:var(--green);background:#ECFDF3;color:#14532D}
+.addb:disabled{border-color:#C9C9C3;color:var(--muted);background:#F1F1EE;cursor:not-allowed}
+.pf{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;border:1px solid var(--line);background:#fff;min-width:0}
+.pf.sel{border-color:var(--accent)}
+.ord{flex:none;display:inline-flex;width:24px;height:24px;border-radius:12px;background:#EEF2FF;color:var(--accent-d);font-size:12px;font-weight:700;align-items:center;justify-content:center}
+.sq{width:44px;height:44px;border-radius:6px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.sq.rm{border-color:#F3B4B4;color:#B91C1C}
+.chip{font-size:10px;padding:2px 6px;border-radius:4px;background:#F1F1EE;color:var(--ink2);overflow-wrap:anywhere}
+.chip.ok{background:#ECFDF3;color:#14532D}.chip.open{background:#FFF7E6;color:#3F2A00}
+.empty{border:1px dashed #C9C9C3;border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px}
+.tiles2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tl{display:flex;flex-direction:column;gap:2px;border-radius:8px;padding:8px 10px;background:#F7F7F4;min-width:0}
+.tl.warn{background:#FFF7E6}
+.tl .k{font-size:11px;color:var(--muted)}.tl .v{font-size:18px;font-weight:700;overflow-wrap:anywhere}.tl .s{font-size:11px;color:var(--ink2);overflow-wrap:anywhere}
+.note{font-size:12px;border-radius:6px;padding:6px 8px;overflow-wrap:anywhere}
+.note.ok{background:#ECFDF3;color:#14532D}.note.open{background:#FFF7E6;border:1px solid #F1D49B;color:#3F2A00}.note.red{background:#FDECEC;color:#7F1D1D}.note.plain{background:#F7F7F4}
+.candb{min-height:44px;padding:2px 10px;border-radius:6px;border:1px solid var(--accent);background:#fff;color:var(--accent-d);cursor:pointer;font-size:12px}
+.fbar{display:grid;grid-template-columns:minmax(70px,110px) 1fr 40px;gap:8px;align-items:center;font-size:12px}
+.fbar .tr{height:8px;border-radius:4px;background:#E7E7E2;overflow:hidden;display:block}
+.fbar .tr i{display:block;height:100%}
+.est{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:#F7F7F4;border-radius:10px;padding:12px 14px}
+.est .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 240px}
+.cmdbox{display:flex;gap:8px;align-items:center;background:var(--ink);border-radius:8px;padding:6px 6px 6px 10px;min-width:0;flex-wrap:wrap}
+.cmdbox .w{font-size:11px;color:#A1A1AA;flex:none}
+.cmdbox code{flex:1 1 200px;min-width:0;color:#F4F4F5;font-size:11px;overflow-wrap:anywhere}
+.cmdbox button{flex:none;min-height:44px;padding:2px 12px;border-radius:6px;border:1px solid #52525B;background:#27272A;color:#F4F4F5;cursor:pointer;font-size:12px}
+.cmds{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:8px}
+.jobbox{display:flex;flex-direction:column;gap:8px;border-radius:10px;padding:12px 14px;border:1px solid var(--line);background:#fff}
+.jobbox.failed{border-color:#F3B4B4;background:#FFFBFB}
+.stage{font-size:11px;padding:3px 8px;border-radius:999px;background:#F1F1EE;color:var(--muted);border:1px solid #E7E7E2}
+.stage.done{background:#DCFCE7;color:#14532D;border-color:#A7E3BE}
+.stage.running{background:#DBEAFE;color:var(--accent-d);border-color:#93C5FD}
+.stage.failed{background:#FDECEC;color:#7F1D1D;border-color:#F3B4B4}
+.stage.skipped{border-style:dashed}
+.cause{font-size:13px;color:#7F1D1D;background:#FDECEC;border-radius:8px;padding:8px 10px;overflow-wrap:anywhere;white-space:pre-wrap}
+.optgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px}
+.optcard{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;cursor:pointer;background:#fff;border-radius:12px;padding:16px;border:1px solid var(--line);min-width:0;width:100%}
+.optcard[aria-pressed=true]{border:2px solid var(--accent);padding:15px}
+.optcard .slot{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.optcard .nm{font-size:19px;font-weight:700;overflow-wrap:anywhere}
+.optcard code{font-size:11px;color:var(--ink2);overflow-wrap:anywhere}
+.m3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
+.m3 span{background:#F7F7F4;border-radius:8px;padding:8px;display:flex;flex-direction:column}
+.m3 .k{font-size:11px;color:var(--muted)}.m3 .v{font-size:18px;font-weight:700}
+.mxbox{overflow-x:auto;max-width:100%}
+table.mx{border-collapse:separate;border-spacing:6px;min-width:760px;font-size:12px;width:100%}
+table.mx th{text-align:left;font-weight:600;color:var(--muted);padding:4px 0;vertical-align:bottom}
+table.mx th.sel{color:var(--accent)}
+table.mx td{border-radius:6px;padding:6px 8px;vertical-align:top}
+td.catalog{background:var(--accent);color:#fff}td.glue{background:#DBEAFE;color:var(--accent-d)}td.net-new{background:#EDEDE8;color:var(--ink2)}
+td.sel{outline:2px solid var(--accent);outline-offset:-2px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:baseline}
+.detgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px}
+.li{display:flex;flex-direction:column;gap:1px;padding:6px 0;border-top:1px solid #EFEFEA}
+.pin{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:#FEF3C7;color:#78350F;margin-left:6px}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+legend{font-size:12px;font-weight:600;color:var(--ink2);padding:0 4px}
+.radio{display:flex;gap:10px;align-items:center;min-height:44px;font-size:13px;flex-wrap:wrap}
+.radio input[type=radio]{width:20px;height:20px;flex:none}
+.radio input[type=text]{flex:1 1 200px}
+ol.kit{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+ol.kit li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:6px;min-width:0}
+.kn{flex:none;display:inline-flex;min-width:30px;height:24px;padding:0 6px;border-radius:12px;background:#EEF2FF;color:var(--accent-d);font-size:12px;font-weight:700;align-items:center;justify-content:center}
+.kind{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:4px;background:#E7E7E2;color:var(--ink2)}
+.kind.scaffold{background:#DBEAFE;color:var(--accent-d)}.kind.cap{background:#ECFDF3;color:#14532D}.kind.gap{background:#FFF7E6;color:#5C3A00}.kind.glue{background:#EDE9FE;color:#4C1D95}
+pre.spec{margin:0;background:var(--ink);color:#F4F4F5;border-radius:8px;padding:10px 12px;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(max-width:900px){.cols3{grid-template-columns:minmax(0,1fr)}.wrap{padding:16px 16px 32px}}
+@media(prefers-reduced-motion:no-preference){.btn,.pillbtn,.small,.tabb{transition:background-color .15s,border-color .15s}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="spread">
+    <div class="row" style="gap:14px;align-items:baseline">
+      <span class="title">Reincarnate</span><span class="muted" style="font-size:14px">Design studio</span>
+    </div>
+    <span class="pill" id="cat-pill">Catalog: loading</span>
+  </div>
+  <nav class="studio" aria-label="Studio">
+    <a class="nav" id="nav-ingest" href="/"><span class="num">1</span>Ingestion: build your catalog</a>
+    <a class="nav on" href="/studio" aria-current="page" id="nav-studio"><span class="num">2</span>Design your app</a>
+  </nav>
+  <ol class="steps" aria-label="Design steps" id="stepbar"></ol>
+</header>
+<div id="notices" style="display:flex;flex-direction:column;gap:10px"></div>
+<main id="view" tabindex="-1"></main>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- tiny helpers: every API string goes in via text nodes ---------- */
+function h(tag, props) {
+  var el = document.createElement(tag);
+  props = props || {};
+  Object.keys(props).forEach(function (k) {
+    var v = props[k];
+    if (v === null || v === undefined || v === false) return;
+    if (k === 'class') el.className = v;
+    else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, '');
+    else el.setAttribute(k, String(v));
+  });
+  for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+  return el;
+}
+function add(el, kid) {
+  if (kid === null || kid === undefined || kid === false) return;
+  if (Array.isArray(kid)) { kid.forEach(function (k) { add(el, k); }); return; }
+  el.appendChild(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+}
+function clear(el) { el.textContent = ''; }   /* the only way containers are emptied */
+function $(id) { return document.getElementById(id); }
+function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+function num(x) { return typeof x === 'number' && isFinite(x) ? x : 0; }
+function money(x, d) { return '$' + num(x).toFixed(d === undefined ? 2 : d); }
+function list(x) { return Array.isArray(x) ? x : (x ? [x] : []); }
+function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+function partName(o, ref) {  // a coverage cell's `c17` as the part's name in that option
+  var id = parseInt(String(ref || '').replace(/^c/, ''), 10);
+  var p = list(o && o.parts).filter(function (x) { return x.id === id || 'c' + x.id === ref; })[0];
+  return p ? str(p.name) : str(ref);
+}
+function str(x) { return x === null || x === undefined ? '' : (typeof x === 'string' ? x : (typeof x === 'object' ? (x.token || x.name || x.text || JSON.stringify(x)) : String(x))); }
+function strs(x) { return list(x).map(str).filter(Boolean); }
+function setErr(el, msg) { if (el) { el.textContent = msg || ''; el.hidden = !msg; } }
+function pct(x) { return x === null || x === undefined ? 'n/a' : Math.round(num(x) * 100) + '%'; }
+function minutesText(m) {
+  if (m === null || m === undefined) return '';
+  var lo = typeof m === 'object' ? num(m.low) : num(m), hi = typeof m === 'object' ? num(m.high) : lo;
+  if (!hi) return '';
+  lo = Math.max(1, Math.round(lo)); hi = Math.max(lo, Math.round(hi));
+  return ' · about ' + (lo === hi ? lo : lo + '-' + hi) + ' min';
+}
+function copyText(text, btn) {
+  function done(ok) {
+    var old = btn.dataset.label || btn.textContent;
+    btn.dataset.label = old;
+    btn.textContent = ok ? 'Copied' : 'Select and copy';
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+  } else done(false);
+}
+function cmdBox(where, text) {
+  return h('div', { class: 'cmdbox' }, h('span', { class: 'w' }, where), h('code', null, text),
+    h('button', { type: 'button', 'aria-label': 'Copy ' + where + ' command', onclick: function (e) { copyText(text, e.currentTarget); } }, 'Copy'));
+}
+function tokName(t) { t = str(t); return t.replace(/^(config|ext):/, ''); }
+function novKey(v) { v = String(v || '').charAt(0).toLowerCase(); return 'dpcu'.indexOf(v) >= 0 && v ? v : 'u'; }
+var NOV_LABEL = { d: 'Distinctive', p: 'Pattern', c: 'Commodity', u: 'Unrated' };
+function novBadge(v) { var k = novKey(v); return h('span', { class: 'nov ' + k }, NOV_LABEL[k]); }
+function isDenied(p) { return String(p.license_level || '').toLowerCase() === 'deny'; }
+function barColor(v) { return v >= 0.5 ? '#15803D' : v >= 0.3 ? '#1D4ED8' : '#A1A1AA'; }
+function fitBar(label, v) {
+  var i = h('i'); i.style.width = Math.round(Math.max(0, Math.min(1, num(v))) * 100) + '%'; i.style.background = barColor(num(v));
+  return h('div', { class: 'fbar' }, h('span', { style: 'overflow-wrap:anywhere' }, label), h('span', { class: 'tr', role: 'img', 'aria-label': 'fit ' + num(v).toFixed(2) }, i), h('span', { style: 'text-align:right' }, num(v).toFixed(2)));
+}
+function tryStore(op, key, val) {
+  try { if (op === 'get') return window.sessionStorage.getItem(key); if (op === 'set') window.sessionStorage.setItem(key, val); } catch (e) { /* storage may be blocked */ }
+  return null;
+}
+
+/* ---------- token and mode ---------- */
+var TOKEN_KEY = 'reincarnate.token', STATE_KEY = 'reincarnate.studio';
+var hash0 = location.hash || '';
+var DEMO = /^#demo(\/|&|=|$)/.test(hash0);
+var TOKEN = '';
+var tm = /(?:^#|&)t=([^&]+)/.exec(hash0);
+if (tm && !DEMO) { try { TOKEN = decodeURIComponent(tm[1]); } catch (e) { TOKEN = tm[1]; } }
+if (!TOKEN && !DEMO) TOKEN = tryStore('get', TOKEN_KEY) || '';
+if (TOKEN && !DEMO) tryStore('set', TOKEN_KEY, TOKEN);
+if (tm && !DEMO) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file: pages */ } }
+
+function routeOf() { return (location.hash || '').replace(/^#(demo)?/, '') || '/'; }
+function go(r) { location.hash = (DEMO ? '#demo' : '#') + r; }
+function otherPageHref(path, demoFile) {
+  if (DEMO) return demoFile + '#demo';
+  return path + (TOKEN ? '#t=' + encodeURIComponent(TOKEN) : '');
+}
+
+/* ---------- state ---------- */
+var saved = {};
+try { saved = JSON.parse(tryStore('get', STATE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
+var S = {
+  cat: null, byId: {}, catErr: '', ids: list(saved.ids).filter(function (x) { return typeof x === 'number'; }), roles: (saved.roles && typeof saved.roles === 'object') ? saved.roles : {},
+  idea: typeof saved.idea === 'string' ? saved.idea : '', nOpts: [2, 3, 4].indexOf(saved.nOpts) >= 0 ? saved.nOpts : 3,
+  designer: saved.designer === 'session' ? 'session' : 'opus', commodity: !!saved.commodity,
+  lastDesign: typeof saved.lastDesign === 'string' ? saved.lastDesign : '', lastComp: typeof saved.lastComp === 'string' ? saved.lastComp : '',
+  targets: (saved.targets && typeof saved.targets === 'object') ? saved.targets : {},
+  sel: null, panel: 'fit', dtab: 'overview', q: '', nov: 'all', donor: 'all', deepOnly: false,
+  fit: null, fitErr: '', fitSeq: 0, est: null, estErr: '', estSeq: 0, estPending: false,
+  gen: { job: null, err: '', busy: false }, designs: null, designsErr: '', designsOpen: false,
+  watchGen: 0, watchTimer: null, noToken: !DEMO && !TOKEN, staleToken: false, viewSeq: 0
+};
+function persist() {
+  tryStore('set', STATE_KEY, JSON.stringify({ ids: S.ids, roles: S.roles, idea: S.idea, nOpts: S.nOpts, designer: S.designer, commodity: S.commodity,
+    lastDesign: S.lastDesign, lastComp: S.lastComp, targets: S.targets }));
+}
+
+/* ---------- demo API (fixture data shaped exactly like the contract) ---------- */
+var demo = (function () {
+  function P(id, name, donor, license, level, nov, deep, what, notes, sec, prov, req, acc, shapes, kv, fits, evid) {
+    return { id: id, name: name, donor: donor, license: license, license_level: level, license_review: level === 'deny' ? 'On your deny list' : '', novelty: nov, portability: deep ? 'high' : 'medium',
+      deepened: deep, what: what, design_notes: notes, security: sec, provides: prov, requires: req, acceptance: acc, data_shapes: shapes, key_values: kv,
+      files_count: deep ? 4 : 0, fits: fits, basis: 'derived', evidence: evid };
+  }
+  var A = 'acme/homelab-dash', B = 'beta/auth-kit', C = 'gamma/agpl-charts';
+  var parts = [
+    P(1, 'Service tile grid', A, 'MIT', null, 'distinctive', true, 'A drag-and-drop grid of service tiles, each with a live status dot and a link.', 'Keep layout as an ordered list of {id, x, y, w, h}; persist on drop, not on drag.', '',
+      ['ui:tile-grid'], ['data:service-list'], ['Dropping a tile saves its new position', 'A tile with no health data shows a grey dot'], ['Tile {id, service_id, x, y, w, h}'], ['grid columns = 12', 'snap = 8 px'], [['second-brain', 0.62], ['burrow', 0.55]], 'Observed in 4 files of the donor; read at commit 6f2a1c0.'),
+    P(2, 'Health probe scheduler', A, 'MIT', null, 'distinctive', true, 'Probes each service on its own interval and records up, down or slow with latency.', 'Interval per service; back off after 3 failures.', 'Never follow redirects to a different host when probing.',
+      ['data:service-health'], ['data:service-list', 'ext:http'], ['A service that answers 500 is down', 'Interval is honoured within 10%'], ['Probe {service_id, at, status, ms}'], ['default interval = 30 s', 'timeout = 5 s'], [['burrow', 0.7], ['family-hub', 0.31]], 'Observed in 3 files; read at commit 6f2a1c0.'),
+    P(3, 'Service registry', A, 'MIT', null, 'pattern', true, 'Stores the list of services to show and probe, with name, URL and group.', 'Plain SQLite table; URLs validated on write.', '',
+      ['data:service-list'], ['config:db-path'], ['Adding a service with a bad URL is rejected'], ['Service {id, name, url, group}'], ['url scheme in http, https'], [['burrow', 0.4]], 'Observed in 2 files; read at commit 6f2a1c0.'),
+    P(4, 'Docker control panel', A, 'MIT', null, 'pattern', false, 'Lists containers and offers start, stop and restart.', 'Talk to the Docker socket through a small adapter so tests can fake it.', 'Controls must sit behind the login guard; never expose the socket.',
+      ['api:container-control'], ['ext:docker-socket', 'auth:guard'], ['Stopping a stopped container is a no-op'], [], [], [['burrow', 0.66]], 'Catalog text only; not read in code.'),
+    P(5, 'Down alert notifier', A, 'MIT', null, 'commodity', false, 'Sends a message when a service goes down and when it recovers.', 'One alert per outage, not per probe.', '',
+      ['event:down-alert'], ['data:service-health', 'ext:smtp'], ['A second failed probe does not send a second alert'], [], [], [['family-hub', 0.28]], 'Catalog text only; not read in code.'),
+    P(6, 'Session login', B, 'Apache-2.0', null, 'pattern', true, 'Password login that issues a signed session cookie.', 'Cookie is HttpOnly and SameSite=Lax; rotate on login.', 'Hash passwords with a slow hash; compare in constant time.',
+      ['auth:session'], ['data:user-store', 'config:session-secret'], ['Wrong password gives the same message as unknown user'], ['Session {id, user_id, expires}'], ['session ttl = 7 days'], [['second-brain', 0.45]], 'Observed in 5 files; read at commit 91be3d2.'),
+    P(7, 'User store', B, 'Apache-2.0', null, 'commodity', true, 'Users with a password hash and a role.', 'Single owner by default.', '',
+      ['data:user-store'], [], ['Duplicate usernames are rejected'], ['User {id, name, hash, role}'], [], [['second-brain', 0.3]], 'Observed in 2 files; read at commit 91be3d2.'),
+    P(8, 'Role guard middleware', B, 'Apache-2.0', null, 'pattern', false, 'Blocks a request unless the session has the required role.', 'Allow-everything until login exists, then deny by default.', 'Deny by default; log every refusal.',
+      ['auth:guard'], ['auth:session'], ['A request without a session gets 401'], [], [], [['burrow', 0.35]], 'Catalog text only; not read in code.'),
+    P(9, 'Rate limiter', B, 'Apache-2.0', null, 'commodity', false, 'Token-bucket limiter per client address.', '', '',
+      ['http:rate-limit'], [], ['The 11th request in a second gets 429'], [], [], [], 'Catalog text only; not read in code.'),
+    P(10, 'Uptime sparkline', C, 'AGPL-3.0', 'deny', 'pattern', true, 'A tiny chart of the last 24 hours of up and down.', 'Downsample to 96 buckets.', '',
+      ['ui:sparkline'], ['data:service-health'], ['Empty history draws a flat line'], [], [], [['burrow', 0.5]], 'Observed in 2 files; read at commit 3d4e5f6.'),
+    P(11, 'Metrics aggregator', C, 'AGPL-3.0', 'deny', 'pattern', false, 'Rolls probe results into hourly latency percentiles.', '', '',
+      ['data:metrics'], ['data:service-health'], ['p95 is the 95th percentile of the hour'], [], [], [], 'Catalog text only; not read in code.'),
+    P(12, 'Alert rule engine', C, 'AGPL-3.0', 'deny', 'distinctive', false, 'Lets the user write rules like "down for 5 minutes" that raise alerts.', '', '',
+      ['event:rule-fired'], ['data:metrics'], ['A rule fires once per breach'], [], [], [], 'Catalog text only; not read in code.')
+  ];
+  var byId = {}; parts.forEach(function (p) { byId[p.id] = p; });
+  var donors = [{ donor: A, n: 5, license: 'MIT', level: null, review: '' }, { donor: B, n: 4, license: 'Apache-2.0', level: null, review: '' },
+                { donor: C, n: 3, license: 'AGPL-3.0', level: 'deny', review: 'Network copyleft: on your deny list' }];
+  var projects = ['second-brain', 'family-hub', 'burrow'];
+
+  function fit(ids, roles) {
+    var ps = ids.map(function (i) { return byId[i]; }).filter(Boolean), prov = {}, wired = [], unmet = [], settings = [], external = [];
+    ps.forEach(function (p) { p.provides.forEach(function (t) { (prov[t] = prov[t] || []).push(p); }); });
+    ps.forEach(function (p) {
+      p.requires.forEach(function (t) {
+        if (t.indexOf('config:') === 0) { if (settings.indexOf(t.slice(7)) < 0) settings.push(t.slice(7)); return; }
+        if (t.indexOf('ext:') === 0) { if (external.indexOf(t.slice(4)) < 0) external.push(t.slice(4)); return; }
+        var from = (prov[t] || []).filter(function (x) { return x.id !== p.id; })[0];
+        if (from) wired.push({ consumer: p.name, token: t, provider: from.name });
+        else unmet.push({ consumer: p.name, token: t, candidates: parts.filter(function (x) { return ids.indexOf(x.id) < 0 && x.provides.indexOf(t) >= 0 && x.license_level !== 'deny'; })
+          .sort(function (a, b) { return (a.donor === p.donor ? -1 : 0) - (b.donor === p.donor ? -1 : 0); }).slice(0, 3)
+          .map(function (x) { return { id: x.id, name: x.name, donor: x.donor, license: x.license }; }) });
+      });
+    });
+    var lic = {}; ps.forEach(function (p) { (lic[p.license] = lic[p.license] || { license: p.license, level: p.license_level, review: p.license_review, parts: [] }).parts.push(p.name); });
+    var fits = projects.map(function (s) { var v = 0; ps.forEach(function (p) { p.fits.forEach(function (f) { if (f[0] === s && f[1] > v) v = f[1]; }); }); return { slug: s, score: v }; });
+    var deep = ps.filter(function (p) { return p.deepened; }).length;
+    return { wired: wired, unmet: unmet, settings: settings, external: external, licenses: Object.keys(lic).map(function (k) { return lic[k]; }), projects: fits,
+      deepened: { n: deep, of: ps.length }, deepen_cost: (ps.length - deep) * 0.011,
+      kit_steps: { total: ps.length ? 1 + ps.length + unmet.length + (wired.length ? 1 : 0) : 0, scaffold: 1, parts: ps.length, fresh: unmet.length, glue: wired.length ? 1 : 0 } };
+  }
+
+  function optPart(id, role, pinned) { var p = byId[id]; return { id: id, name: p.name, donor: p.donor, license: p.license, role: role, pinned: !!pinned }; }
+  var design = {
+    slug: 'homelab-dashboard', title: 'Homelab control dashboard', idea: 'A homelab control dashboard: a drag-and-drop grid of service tiles with live health dots, Docker container controls, and a login so only I can change it.',
+    requirements: [{ id: 'R1', text: 'Drag-and-drop grid of service tiles' }, { id: 'R2', text: 'Live health dot on every tile' }, { id: 'R3', text: 'Add and edit the list of services' },
+      { id: 'R4', text: 'Start, stop and restart Docker containers' }, { id: 'R5', text: 'Only the owner can change anything' }, { id: 'R6', text: 'Alert when a service goes down' }],
+    meta: '6 requirements · 3 options from a pool of 9 parts, commodity excluded · links checked by Haiku · design cost $0.35',
+    options: [
+      { slot: 'lean', slot_label: 'Lean', name: 'Tiles and probes', slug: 'tiles-and-probes', pitch: 'Just the grid and the health probes. No login, no controls.', rationale: 'Smallest thing that shows live status.',
+        stack: 'Python + FastAPI + SQLite + vanilla JS', scores: { reuse: 0.75, fit: 0.58 },
+        parts: [optPart(1, 'tile grid', true), optPart(2, 'health probes', false), optPart(3, 'service list', false)],
+        wiring: { wired: ['Service tile grid gets data:service-list from Service registry', 'Health probe scheduler gets data:service-list from Service registry'], unmet: [], counts: { wired: 2, unmet: 0, settings: 1, external: 1 } },
+        coverage: [{ req: 'R1', kind: 'catalog', cap: 'Service tile grid' }, { req: 'R2', kind: 'catalog', cap: 'Health probe scheduler' }, { req: 'R3', kind: 'catalog', cap: 'Service registry' }, { req: 'R4', kind: 'net-new', cap: '' }, { req: 'R5', kind: 'net-new', cap: '' }, { req: 'R6', kind: 'glue', cap: '' }],
+        flags: ['No part covers R4 or R5; both are written fresh.'], glue: ['Alert on a status change in the probe loop'], new_work: ['Docker container controls', 'Owner login'] },
+      { slot: 'complete', slot_label: 'Complete', name: 'Full control room', slug: 'full-control-room', pitch: 'Grid, probes, Docker controls and a login, wired through a role guard.', rationale: 'Covers every requirement from the catalog or glue.',
+        stack: 'Python + FastAPI + SQLite + vanilla JS', scores: { reuse: 0.82, fit: 0.66 },
+        parts: [optPart(1, 'tile grid', true), optPart(2, 'health probes', false), optPart(3, 'service list', false), optPart(4, 'container controls', false), optPart(6, 'owner login', false), optPart(7, 'user store', false), optPart(8, 'role guard', false)],
+        wiring: { wired: ['Docker control panel gets auth:guard from Role guard middleware', 'Role guard middleware gets auth:session from Session login', 'Session login gets data:user-store from User store'], unmet: ['Down alert needs ext:smtp (an outside service)'], counts: { wired: 3, unmet: 1, settings: 2, external: 3 } },
+        coverage: [{ req: 'R1', kind: 'catalog', cap: 'Service tile grid' }, { req: 'R2', kind: 'catalog', cap: 'Health probe scheduler' }, { req: 'R3', kind: 'catalog', cap: 'Service registry' }, { req: 'R4', kind: 'catalog', cap: 'Docker control panel' }, { req: 'R5', kind: 'catalog', cap: 'Role guard middleware' }, { req: 'R6', kind: 'glue', cap: '' }],
+        flags: ['Docker control panel is not read in code yet; deepen before building.'], glue: ['Down alerts with a recovery notice', 'Admin service editor'], new_work: ['Outbound mail client'] },
+      { slot: 'bold', slot_label: 'Bold', name: 'Alerting first', slug: 'alerting-first', pitch: 'Built around alerts: down notices, recovery and a quiet-hours rule.', rationale: 'A different centre of gravity from the other two.',
+        stack: 'Python + FastAPI + SQLite + HTMX', scores: { reuse: 0.6, fit: 0.49 },
+        parts: [optPart(1, 'tile grid', true), optPart(2, 'health probes', false), optPart(3, 'service list', false), optPart(5, 'alerts', false), optPart(6, 'owner login', false), optPart(7, 'user store', false)],
+        wiring: { wired: ['Down alert notifier gets data:service-health from Health probe scheduler'], unmet: ['Session login needs data:user-store (not in this option)'], counts: { wired: 1, unmet: 1, settings: 2, external: 2 } },
+        coverage: [{ req: 'R1', kind: 'catalog', cap: 'Service tile grid' }, { req: 'R2', kind: 'catalog', cap: 'Health probe scheduler' }, { req: 'R3', kind: 'catalog', cap: 'Service registry' }, { req: 'R4', kind: 'net-new', cap: '' }, { req: 'R5', kind: 'glue', cap: '' }, { req: 'R6', kind: 'catalog', cap: 'Down alert notifier' }],
+        flags: [], glue: ['Login check on the editor'], new_work: ['Docker container controls', 'Quiet-hours rule'] }
+    ]
+  };
+  var comp = { slug: 'homelab-dashboard-complete', name: 'Full control room', target_kind: 'new', target_slug: 'homelab-control', problems: [] };
+  var STEPS = [
+    { n: 0, kind: 'scaffold', title: 'Scaffold the project: stack, tests, authorization guard', donor: '', deepened: true, guard_note: false, needs: [], checks: 3, spec_head: '# Step 0: scaffold\n\nSet up Python 3.11, FastAPI, SQLite and pytest.\nAdd an authorization guard that allows everything until step 5.\n\n## Acceptance\n- pytest runs and passes with one smoke test\n- GET /health returns 200' },
+    { n: 1, kind: 'cap', title: 'Service registry', donor: 'acme/homelab-dash', deepened: true, guard_note: false, needs: [], checks: 4, spec_head: '# Step 1: Service registry\n\nStores the list of services with name, URL and group.\n\n## Data shapes\n- Service {id, name, url, group}\n\n## Acceptance\n- Adding a service with a bad URL is rejected' },
+    { n: 2, kind: 'cap', title: 'Health probe scheduler', donor: 'acme/homelab-dash', deepened: true, guard_note: false, needs: ['data:service-list from step 1'], checks: 5, spec_head: '# Step 2: Health probe scheduler\n\nProbes each service on its own interval.\n\n## Key values\n- default interval = 30 s\n- timeout = 5 s' },
+    { n: 3, kind: 'cap', title: 'Service tile grid', donor: 'acme/homelab-dash', deepened: true, guard_note: false, needs: ['data:service-list from step 1'], checks: 4, spec_head: '# Step 3: Service tile grid\n\nA drag-and-drop grid of tiles with a status dot.' },
+    { n: 4, kind: 'cap', title: 'Docker control panel', donor: 'acme/homelab-dash', deepened: false, guard_note: true, needs: ['auth:guard from step 5'], checks: 3, spec_head: '# Step 4: Docker control panel\n\nCross-cutting: endpoints this step adds go through the authorization guard,\nwhich allows everything until step 5.' },
+    { n: 5, kind: 'cap', title: 'Role guard middleware', donor: 'beta/auth-kit', deepened: false, guard_note: false, needs: ['auth:session from step 6'], checks: 3, spec_head: '# Step 5: Role guard middleware\n\nBlocks a request unless the session has the required role.' },
+    { n: 6, kind: 'glue', title: 'Glue: down alerts with recovery notice', donor: '', deepened: true, guard_note: false, needs: ['data:service-health from step 2'], checks: 2, spec_head: '# Step 6: Glue\n\nSend one message when a service goes down and one when it recovers.' }
+  ];
+  var jobs = [], seq = 1;
+  function jobOut(j) { return JSON.parse(JSON.stringify(j)); }
+  function mkJob(kind, names, params, willFail) {
+    var j = { id: 'dj' + (seq++), kind: kind, target: kind === 'design' ? 'design' : 'kit', params: params, state: 'running', stage: names[0],
+      stages: names.map(function (n, i) { return { name: n, state: i === 0 ? 'running' : 'pending' }; }), created: Date.now(), started: Date.now(), finished: null, elapsed_s: 0, cost_usd: 0, error: null, result: null, _fail: willFail };
+    jobs.push(j); return j;
+  }
+  setInterval(function () {
+    jobs.forEach(function (j) {
+      if (j.state !== 'running') return;
+      var i = j.stages.findIndex(function (s) { return s.state === 'running'; });
+      if (i < 0) return;
+      if (j._fail && i === 1) {
+        j.stages[i].state = 'failed'; j.state = 'failed'; j.finished = Date.now();
+        j.error = 'claude -p exited 1: Failed to authenticate: OAuth session expired and could not be refreshed. Run claude auth login, then retry.'; return;
+      }
+      j.stages[i].state = 'done'; j.cost_usd += 0.11;
+      if (i + 1 < j.stages.length) { j.stages[i + 1].state = 'running'; j.stage = j.stages[i + 1].name; }
+      else {
+        j.state = 'done'; j.finished = Date.now();
+        j.result = j.kind === 'design' ? { design_slug: design.slug, cost_usd: 0.36 } : { kit_dir: j.params.dir + '/.reincarnate', steps: STEPS.length, warnings: [] };
+      }
+    });
+  }, 1500);
+  function dirOf(t) {
+    t = String(t || '');
+    if (t.indexOf('new:') === 0) return '/Users/me/projects/' + t.slice(4);
+    if (t.charAt(0) === '/') return t;
+    return '/Users/me/' + (t || 'homelab-control');
+  }
+  return function (method, path, body) {
+    return new Promise(function (resolve, reject) {
+      setTimeout(function () {
+        var mm;
+        if (path === '/api/catalog') return resolve({ parts: parts, donors: donors, projects: projects });
+        if (path === '/api/fit') return resolve(fit(list(body.ids), body.roles || {}));
+        if (path === '/api/estimate/design') {
+          var n = num(body.options) || 3, lo = 0.35 * n / 3, hi = lo * 1.4;
+          return resolve({ low: lo + 0.01, high: hi + 0.01, minutes: { low: n, high: n * 2 }, basis: 'Demo constants, not measured runs: about $0.35 for 3 options with Opus, plus about $0.01 to verify the links.' });
+        }
+        if (path === '/api/designs' && method === 'POST') {
+          if (!String(body.idea || '').trim()) return reject(new Error('idea is required'));
+          return resolve({ job: jobOut(mkJob('design', ['pool', 'design', 'verify'], { options: body.options }, /fail/i.test(body.idea))) });
+        }
+        if (path === '/api/designs') return resolve({ designs: [{ slug: design.slug, title: design.title, idea: design.idea, created: '2026-10-24', options: 3, engine: 'claude-p' },
+          { slug: 'older-notes-app', title: 'Notes app with search', idea: 'A small notes app with full-text search.', created: '2026-10-20', options: 2, engine: 'session' }] });
+        if ((mm = /^\/api\/designs\/([^/]+)\/pick$/.exec(path))) {
+          if (mm[1] !== design.slug) return reject(new Error('no such design'));
+          var c = Object.assign({}, comp, { slug: design.slug + '-' + body.option, problems: /problem/.test(String(body.target)) ? ['Target already has a package.json; the kit will treat it as an existing project.'] : [] });
+          return resolve({ composition: c });
+        }
+        if ((mm = /^\/api\/designs\/([^/]+)$/.exec(path))) {
+          if (mm[1] !== design.slug) return reject(new Error('no such design: ' + mm[1]));
+          return resolve(design);
+        }
+        if (path === '/api/kits/preview') {
+          var dir = dirOf(body.target), refusal = [];
+          if (/refuse/.test(dir)) refusal = ['Step 2 is ticked in tasks.md; a re-export would overwrite built work.'];
+          if (/missing/.test(dir)) refusal = ['Missing parts: 2 parts in this composition are no longer in the catalog.'];
+          return resolve({ target: { dir: dir, kind: /^new:/.test(String(body.target)) || !/^[a-z-]+$/.test(String(body.target || 'x')) ? 'new' : 'existing', stack: 'Python + FastAPI + SQLite', test_cmd: 'pytest -q' },
+            steps: STEPS, warnings: ['Docker control panel and Role guard middleware are not read in code yet; the kit uses catalog text for them.'], refusal: refusal, deepen: { needed: 2, cost: 0.022 },
+            decisions: [
+              { id: 'D1', question: 'Can anonymous visitors see the board?', why: 'Decides whether the board routes need a sign-in guard.', options: ['Only signed-in users', 'Anyone with the link, read-only'], default: 'Only signed-in users', steps: [1, 2], answer: null, source: null },
+              { id: 'D2', question: 'Who may edit the services shown?', why: 'Decides the roles the login step creates.', options: ['Admins only', 'Any signed-in user', 'Admins and editors'], default: 'Admins only', steps: [2], answer: null, source: null }] });
+        }
+        if (path === '/api/kits') {
+          return resolve({ job: jobOut(mkJob('kit', body.deepen ? ['deepen', 'write'] : ['write'], { dir: dirOf(body.target) }, false)) });
+        }
+        if (path === '/api/jobs' && method === 'GET') return resolve({ jobs: jobs.slice().reverse().map(jobOut) });
+        if ((mm = /^\/api\/jobs\/([^/]+)\/retry$/.exec(path))) {
+          var old = jobs.filter(function (x) { return x.id === mm[1]; })[0];
+          if (!old) return reject(new Error('no such job'));
+          return resolve({ job: jobOut(mkJob(old.kind, old.stages.map(function (s) { return s.name; }), old.params, false)) });
+        }
+        reject(new Error('not found'));
+      }, 150);
+    });
+  };
+})();
+
+/* ---------- real API ---------- */
+function api(method, path, body) {
+  if (DEMO) return demo(method, path, body);
+  var opts = { method: method, headers: { 'X-Reincarnate-Token': TOKEN }, cache: 'no-store' };
+  if (method === 'POST') { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body || {}); }
+  return fetch(path, opts).then(function (r) {
+    return r.text().then(function (t) {
+      var data = null;
+      try { data = t ? JSON.parse(t) : {}; } catch (e) { data = null; }
+      if (r.status === 403 && !S.staleToken) { S.staleToken = true; renderNotices(); }
+      if (!r.ok || (data && data.error)) throw new Error((data && data.error) || ('Request failed (' + r.status + ')'));
+      if (S.staleToken) { S.staleToken = false; renderNotices(); }
+      if (data === null) throw new Error('The server sent something that is not JSON');
+      return data;
+    });
+  }, function () { throw new Error('Cannot reach the server. Is `reincarnate serve` still running?'); });
+}
+
+/* ---------- notices, nav, step bar ---------- */
+function renderNotices() {
+  var box = $('notices'); clear(box);
+  if (DEMO) box.appendChild(h('div', { class: 'banner info', role: 'status' }, 'Demo mode: fixture data, no server involved. Jobs advance on a timer. Try ', h('code', null, '#demo/design/homelab-dashboard'), ' and ', h('code', null, '#demo/kit/homelab-dashboard-complete'), '. Put "fail" in the idea to see a failed job.'));
+  if (S.staleToken && !S.noToken) box.appendChild(h('div', { class: 'banner err', role: 'alert' }, 'The server no longer accepts this page\'s token; it has probably restarted. Open the new link ', h('code', null, 'reincarnate serve'), ' printed.'));
+  if (S.noToken) box.appendChild(h('div', { class: 'banner err', role: 'alert' }, 'No access token. Open the link ', h('code', null, 'reincarnate serve'), ' printed (it ends in ', h('code', null, '#t=...'), ').'));
+}
+function renderNav() {
+  $('nav-ingest').setAttribute('href', otherPageHref('/', 'ingest.html'));
+  $('nav-studio').setAttribute('href', DEMO ? 'studio.html#demo' : '/studio');
+  var bar = $('stepbar'); clear(bar);
+  var r = routeOf(), cur = /^\/design\//.test(r) ? 'b' : /^\/kit\//.test(r) ? 'c' : 'a';
+  function item(key, label, route) {
+    var on = cur === key;
+    if (!route) return h('li', null, h('span', { class: 'stp off', 'aria-disabled': 'true' }, label));
+    return h('li', null, h('a', { class: 'stp' + (on ? ' on' : ''), href: (DEMO ? '#demo' : '#') + route, 'aria-current': on ? 'step' : false }, label));
+  }
+  bar.appendChild(item('a', 'a · Portfolio', '/'));
+  bar.appendChild(h('li', { 'aria-hidden': 'true', class: 'sep' }, '→'));
+  bar.appendChild(item('b', 'b · Compare options', S.lastDesign ? '/design/' + encodeURIComponent(S.lastDesign) : ''));
+  bar.appendChild(h('li', { 'aria-hidden': 'true', class: 'sep' }, '→'));
+  bar.appendChild(item('c', 'c · Kit and build', S.lastComp ? '/kit/' + encodeURIComponent(S.lastComp) : ''));
+}
+
+/* ---------- jobs: poll one job at a time ---------- */
+function isLive(j) { return j && (j.state === 'queued' || j.state === 'running'); }
+function stopWatch() { S.watchGen++; clearTimeout(S.watchTimer); }
+function watchJob(id, cb) {
+  stopWatch();
+  var gen = S.watchGen;
+  (function tick() {
+    api('GET', '/api/jobs').then(function (d) {
+      if (gen !== S.watchGen) return;
+      var j = list(d.jobs).filter(function (x) { return x.id === id; })[0];
+      if (j) cb(j);
+      if (!j || isLive(j)) S.watchTimer = setTimeout(tick, 2000);
+    }, function () { if (gen === S.watchGen) S.watchTimer = setTimeout(tick, 2000); });
+  })();
+}
+function jobId(j) { return j && typeof j === 'object' ? j.id : j; }
+function jobBox(j, label, onRetry, retryBusy) {
+  var st = j.state;
+  return h('div', { class: 'jobbox ' + st, role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'spread' }, h('strong', null, label), h('span', { class: 'sm' }, { queued: 'Queued', running: 'Running: ' + (j.stage || ''), done: 'Done', failed: 'Failed', cancelled: 'Cancelled' }[st] || st)),
+    h('div', { class: 'row', style: 'gap:6px' }, list(j.stages).map(function (s) { return h('span', { class: 'stage ' + s.state, title: s.state }, cap(s.name) + (s.state === 'done' ? ' ✓' : '')); })),
+    h('span', { class: 'muted' }, 'Cost so far ' + money(j.cost_usd, 4) + '.'),
+    st === 'failed' || st === 'cancelled' ? h('div', { class: 'cause', role: 'note' }, j.error || 'Failed with no recorded cause.') : null,
+    st === 'failed' || st === 'cancelled' ? h('div', null, h('button', { type: 'button', class: 'small danger', disabled: retryBusy, onclick: onRetry }, 'Retry')) : null);
+}
+
+/* ---------- catalog and fit ---------- */
+function persistedPrune() {
+  S.ids = S.ids.filter(function (id) { return S.byId[id]; });
+  Object.keys(S.roles).forEach(function (k) { if (!S.byId[k]) delete S.roles[k]; });
+}
+function loadCatalog() {
+  if (S.noToken) return Promise.resolve();
+  return api('GET', '/api/catalog').then(function (d) {
+    S.cat = { parts: list(d.parts), donors: list(d.donors), projects: list(d.projects) };
+    S.byId = {}; S.cat.parts.forEach(function (p) { S.byId[p.id] = p; });
+    S.catErr = '';
+    persistedPrune(); persist();
+    $('cat-pill').textContent = 'Catalog: ' + plural(S.cat.parts.length, 'part') + ' from ' + plural(S.cat.donors.length, 'repo');
+    if (S.sel !== null && !S.byId[S.sel]) S.sel = null;
+    renderCatalogViews(); scheduleFit();
+  }, function (e) { S.catErr = e.message; $('cat-pill').textContent = 'Catalog: not loaded'; renderCatalogViews(); });
+}
+var fitTimer = null;
+function scheduleFit() {
+  clearTimeout(fitTimer);
+  var seq = ++S.fitSeq;
+  if (!S.ids.length || S.noToken) { S.fit = null; S.fitErr = ''; renderRight(); renderPortfolio(); renderGen(); return; }
+  fitTimer = setTimeout(function () {
+    api('POST', '/api/fit', { ids: S.ids.slice(), roles: roleMap() }).then(function (d) {
+      if (seq !== S.fitSeq) return;
+      S.fit = d; S.fitErr = ''; renderRight(); renderPortfolio(); renderGen();
+    }, function (e) { if (seq !== S.fitSeq) return; S.fit = null; S.fitErr = e.message; renderRight(); });
+  }, 300);
+}
+function roleMap() {
+  var m = {};
+  S.ids.forEach(function (id) { var r = (S.roles[id] || '').trim(); if (r) m[id] = r; });
+  return m;
+}
+function inPf(id) { return S.ids.indexOf(id) >= 0; }
+function portfolioParts() { return S.ids.map(function (id) { return S.byId[id]; }).filter(Boolean); }
+function changed(focusSel) {
+  persist(); S.gen.err = '';
+  renderFind(); renderPortfolio(); renderRight(); renderGen(); scheduleFit(); scheduleEstimate();
+  if (focusSel) { var el = document.querySelector(focusSel); if (el) el.focus(); }
+}
+function togglePart(id) {
+  if (inPf(id)) S.ids = S.ids.filter(function (x) { return x !== id; });
+  else { var p = S.byId[id]; if (!p || isDenied(p)) return; S.ids.push(id); }
+  changed('[data-add="' + id + '"]');
+}
+function movePart(id, dir) {
+  var i = S.ids.indexOf(id), j = i + dir;
+  if (i < 0 || j < 0 || j >= S.ids.length) return;
+  S.ids[i] = S.ids[j]; S.ids[j] = id;
+  changed('[data-mv="' + (dir < 0 ? 'up' : 'down') + id + '"]');
+}
+
+/* wiring helpers: the server's fit check when present, else the portfolio itself */
+function providerOf(p, t) {
+  if (S.fit) {
+    var w = list(S.fit.wired).filter(function (x) { return x.consumer === p.name && x.token === t; })[0];
+    if (w) return w.provider;
+    return '';
+  }
+  var from = portfolioParts().filter(function (x) { return x.id !== p.id && strs(x.provides).indexOf(t) >= 0; })[0];
+  return from ? from.name : '';
+}
+function linkChips(p) {
+  return strs(p.requires).map(function (t) {
+    if (t.indexOf('config:') === 0) return h('span', { class: 'chip' }, 'setting ' + tokName(t));
+    if (t.indexOf('ext:') === 0) return h('span', { class: 'chip' }, 'outside ' + tokName(t));
+    return providerOf(p, t) ? h('span', { class: 'chip ok' }, '✓ ' + t) : h('span', { class: 'chip open' }, '○ ' + t);
+  });
+}
+
+/* ---------- portfolio view ---------- */
+function buildPortfolioView() {
+  var root = $('view'); clear(root);
+  var stack = h('div', { style: 'display:flex;flex-direction:column;gap:16px' });
+  root.appendChild(stack);
+  var find = h('section', { class: 'card', 'aria-label': 'Find parts' },
+    h('div', { class: 'spread', style: 'flex-wrap:nowrap;align-items:baseline' }, h('h2', null, 'Find parts'), h('span', { class: 'muted', id: 'find-count' })),
+    h('label', { for: 'q', class: 'sr' }, 'Search parts'),
+    h('input', { id: 'q', type: 'search', placeholder: 'Search behaviors: grid, health, auth, playlist…', autocomplete: 'off', spellcheck: 'false' }),
+    h('div', { role: 'group', 'aria-label': 'Novelty', class: 'row', id: 'nov-tabs', style: 'gap:6px' }),
+    h('div', { class: 'row' }, h('label', { for: 'donor', class: 'sm' }, 'Donor'), h('select', { id: 'donor' }),
+      h('label', { class: 'check', style: 'min-height:44px' }, h('input', { type: 'checkbox', id: 'deep-only' }), 'Read in code only')),
+    h('div', { class: 'scroll', id: 'find-list' }));
+  var pf = h('section', { class: 'card', 'aria-label': 'Portfolio' },
+    h('div', { class: 'spread', style: 'flex-wrap:nowrap;align-items:baseline' }, h('h2', null, 'Your portfolio'), h('span', { class: 'muted', id: 'pf-count' })),
+    h('span', { class: 'sm' }, 'Order is the build order. A role tells the designer what each part is for in this app.'),
+    h('div', { class: 'stack', id: 'pf-list' }),
+    h('div', { class: 'row' }, h('button', { type: 'button', class: 'small mini', id: 'pf-clear', onclick: function () { S.ids = []; S.roles = {}; changed(); } }, 'Clear')));
+  var right = h('section', { class: 'card', 'aria-label': 'Fit check and part detail' },
+    h('div', { role: 'tablist', 'aria-label': 'Panel', class: 'tabs', id: 'right-tabs' }),
+    h('div', { class: 'stack', id: 'right-body', role: 'tabpanel' }));
+  stack.appendChild(h('div', { class: 'cols3' }, find, pf, right));
+  stack.appendChild(h('section', { class: 'card gen', 'aria-label': 'Generate options', id: 'gen' }));
+  stack.appendChild(h('section', { class: 'card', 'aria-label': 'Earlier designs', id: 'earlier' }));
+
+  $('q').value = S.q;
+  $('q').addEventListener('input', function (e) { S.q = e.target.value; renderFind(); });
+  $('donor').addEventListener('change', function (e) { S.donor = e.target.value; renderFind(); });
+  $('deep-only').checked = S.deepOnly;
+  $('deep-only').addEventListener('change', function (e) { S.deepOnly = e.target.checked; renderFind(); });
+  renderCatalogViews(); renderEarlier();
+  buildGen();
+  if (S.gen.job && isLive(S.gen.job)) watchJob(jobId(S.gen.job), onGenJob);
+}
+function renderCatalogViews() {
+  if (!$('find-list')) return;
+  renderFind(); renderPortfolio(); renderRight(); renderGen();
+}
+function renderFind() {
+  var box = $('find-list'); if (!box) return;
+  clear(box);
+  if (S.catErr) { box.appendChild(h('p', { class: 'err-inline', role: 'alert' }, 'Could not load the catalog: ' + S.catErr)); return; }
+  if (!S.cat) { box.appendChild(h('span', { class: 'muted' }, S.noToken ? 'No access token.' : 'Loading the catalog…')); return; }
+  var parts = S.cat.parts;
+  var counts = { all: parts.length, d: 0, p: 0, c: 0 };
+  parts.forEach(function (p) { var k = novKey(p.novelty); if (counts[k] !== undefined) counts[k]++; });
+  var tabs = $('nov-tabs'); clear(tabs);
+  [['all', 'All'], ['d', 'Distinctive'], ['p', 'Pattern'], ['c', 'Commodity']].forEach(function (t) {
+    tabs.appendChild(h('button', { type: 'button', class: 'pillbtn', 'aria-pressed': S.nov === t[0] ? 'true' : 'false', onclick: function () { S.nov = t[0]; renderFind(); } }, t[1] + ' ' + counts[t[0]]));
+  });
+  var dsel = $('donor');
+  if (dsel.dataset.n !== String(S.cat.donors.length)) {
+    clear(dsel); dsel.dataset.n = String(S.cat.donors.length);
+    dsel.appendChild(h('option', { value: 'all' }, 'All donors'));
+    S.cat.donors.forEach(function (d) { dsel.appendChild(h('option', { value: d.donor }, d.donor + ' (' + num(d.n) + ')' + (String(d.level || '') === 'deny' ? ' · denied' : ''))); });
+  }
+  dsel.value = S.donor;
+  var ql = S.q.trim().toLowerCase();
+  var rows = parts.filter(function (p) {
+    return (S.nov === 'all' || novKey(p.novelty) === S.nov) && (S.donor === 'all' || p.donor === S.donor) && (!S.deepOnly || p.deepened) &&
+      (!ql || (p.name + ' ' + str(p.what) + ' ' + strs(p.provides).join(' ')).toLowerCase().indexOf(ql) >= 0);
+  });
+  $('find-count').textContent = rows.length + ' of ' + parts.length + ' shown';
+  if (!rows.length) box.appendChild(h('span', { class: 'muted' }, 'No part matches.'));
+  rows.slice(0, 200).forEach(function (p) {
+    var on = inPf(p.id), denied = isDenied(p), what = str(p.what);
+    box.appendChild(h('div', { class: 'prow' + (on ? ' in' : '') + (S.sel === p.id ? ' sel' : '') },
+      h('button', { type: 'button', class: 'open', onclick: function () { S.sel = p.id; S.panel = 'detail'; renderFind(); renderPortfolio(); renderRight(); } },
+        h('span', { class: 'nm' }, p.name),
+        h('span', { class: 'row', style: 'gap:6px;font-size:11px;color:#52525B' }, novBadge(p.novelty), p.donor + ' · ' + p.license, p.deepened ? h('span', { style: 'color:#14532D' }, '· read in code') : null,
+          denied ? h('span', { class: 'pin', style: 'background:#FDECEC;color:#7F1D1D' }, 'license denied') : null),
+        h('span', { class: 'sm' }, what.length > 150 ? what.slice(0, 150).replace(/\s+\S*$/, '') + '…' : what)),
+      h('button', { type: 'button', class: 'addb' + (on ? ' in' : ''), 'data-add': p.id, disabled: denied && !on, title: denied && !on ? 'Its license is on your deny list' : false,
+        'aria-label': (on ? 'Remove ' : 'Add ') + p.name + (denied && !on ? ' (license denied)' : ''), onclick: function () { togglePart(p.id); } }, on ? '✓' : '+')));
+  });
+  if (rows.length > 200) box.appendChild(h('span', { class: 'muted' }, 'Showing the first 200. Narrow the search to see the rest.'));
+}
+function renderPortfolio() {
+  var box = $('pf-list'); if (!box) return;
+  clear(box);
+  var ps = portfolioParts();
+  $('pf-count').textContent = ps.length + ' parts · ' + ps.filter(function (p) { return novKey(p.novelty) === 'd'; }).length + ' distinctive';
+  $('pf-clear').disabled = !ps.length;
+  if (!ps.length) box.appendChild(h('div', { class: 'empty' }, 'Add parts from the left, or generate options straight from an idea below.'));
+  ps.forEach(function (p, i) {
+    var role = h('input', { type: 'text', 'aria-label': 'Role of ' + p.name, placeholder: 'Role in this app', autocomplete: 'off', style: 'min-height:40px' });
+    role.value = S.roles[p.id] || '';
+    role.addEventListener('input', function () { S.roles[p.id] = role.value; persist(); scheduleFit(); });
+    box.appendChild(h('div', { class: 'pf' + (S.sel === p.id ? ' sel' : '') },
+      h('div', { class: 'row', style: 'flex-wrap:nowrap;align-items:flex-start' },
+        h('span', { class: 'ord' }, i + 1),
+        h('button', { type: 'button', class: 'open', style: 'flex:1;min-width:0;text-align:left;background:none;border:none;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:44px', onclick: function () { S.sel = p.id; S.panel = 'detail'; renderFind(); renderPortfolio(); renderRight(); } },
+          h('span', { style: 'font-size:13px;font-weight:600;overflow-wrap:anywhere' }, p.name),
+          h('span', { class: 'muted', style: 'font-size:11px' }, p.donor + ' · ' + p.license + ' · ' + (p.deepened ? 'read in code' : 'catalog text only')))),
+      h('div', { class: 'row', style: 'gap:4px' },
+        h('button', { type: 'button', class: 'sq', 'aria-label': 'Move ' + p.name + ' up', 'data-mv': 'up' + p.id, disabled: i === 0, onclick: function () { movePart(p.id, -1); } }, '↑'),
+        h('button', { type: 'button', class: 'sq', 'aria-label': 'Move ' + p.name + ' down', 'data-mv': 'down' + p.id, disabled: i === ps.length - 1, onclick: function () { movePart(p.id, 1); } }, '↓'),
+        h('button', { type: 'button', class: 'sq rm', 'aria-label': 'Remove ' + p.name, onclick: function () { togglePart(p.id); } }, '×')),
+      role,
+      h('div', { class: 'row', style: 'gap:4px' }, linkChips(p))));
+  });
+}
+
+/* the right-hand panel: fit check and part detail */
+function renderRight() {
+  var tabs = $('right-tabs'), body = $('right-body'); if (!tabs) return;
+  clear(tabs); clear(body);
+  var sp = S.sel !== null ? S.byId[S.sel] : null;
+  [['fit', 'Fit check'], ['detail', sp ? 'Part: ' + (sp.name.length > 26 ? sp.name.slice(0, 26).replace(/\s+\S*$/, '') + '…' : sp.name) : 'Part detail']].forEach(function (t) {
+    tabs.appendChild(h('button', { type: 'button', role: 'tab', class: 'tabb', 'aria-selected': S.panel === t[0] ? 'true' : 'false', onclick: function () { S.panel = t[0]; renderRight(); } }, t[1]));
+  });
+  if (S.panel === 'fit') renderFit(body); else renderDetail(body, sp);
+}
+function tile(k, v, s, warn) { return h('div', { class: 'tl' + (warn ? ' warn' : '') }, h('span', { class: 'k' }, k), h('span', { class: 'v' }, v), h('span', { class: 's' }, s)); }
+function renderFit(body) {
+  if (!S.ids.length) { body.appendChild(h('span', { class: 'sm' }, 'Add parts to your portfolio to see how they wire together, what is missing, and what the kit would cost.')); return; }
+  if (S.fitErr) { body.appendChild(h('p', { class: 'err-inline', role: 'alert' }, 'Fit check failed: ' + S.fitErr)); return; }
+  var f = S.fit;
+  if (!f) { body.appendChild(h('span', { class: 'sm', role: 'status' }, 'Checking the fit…')); return; }
+  var wired = list(f.wired), unmet = list(f.unmet), settings = strs(f.settings), external = strs(f.external), deep = f.deepened || { n: 0, of: 0 }, ks = f.kit_steps || {};
+  var open = num(deep.of) - num(deep.n);
+  body.appendChild(h('div', { class: 'tiles2' },
+    tile('Wiring', wired.length + ' wired · ' + unmet.length + ' open', settings.length + ' settings · ' + external.length + ' outside services', unmet.length > 0),
+    tile('Read in code', num(deep.n) + ' of ' + num(deep.of), open > 0 ? 'Deepen the rest before building, about ' + money(f.deepen_cost) : 'Ready to build from', open > 0),
+    tile('Kit size', plural(num(ks.total), 'step'), 'scaffold ' + num(ks.scaffold) + ', parts ' + num(ks.parts) + ', build-fresh ' + num(ks.fresh) + ', glue ' + num(ks.glue), false),
+    tile('Licenses', plural(list(f.licenses).length, 'license'), list(f.licenses).map(function (l) { return l.license; }).join(', ') || 'none', list(f.licenses).some(function (l) { return l.level || l.review; }))));
+  var wb = h('div', { class: 'stack' }, h('h3', null, 'Wiring'));
+  if (!wired.length && !unmet.length) wb.appendChild(h('span', { class: 'sm' }, 'No part in the portfolio needs anything from another part yet.'));
+  wired.forEach(function (w) { wb.appendChild(h('span', { class: 'note ok' }, '✓ ' + str(w.consumer) + ' gets ' + str(w.token) + ' from ' + str(w.provider))); });
+  unmet.forEach(function (u) {
+    var cands = list(u.candidates);
+    wb.appendChild(h('div', { class: 'note open stack', style: 'gap:4px' }, h('span', null, '○ ' + str(u.consumer) + ' needs ' + str(u.token)),
+      h('span', { class: 'row', style: 'gap:6px' }, cands.map(function (c) { return h('button', { type: 'button', class: 'candb', 'aria-label': 'Add ' + c.name + ' from ' + c.donor, onclick: function () { togglePart(c.id); } }, '+ ' + c.name + ' (' + String(c.donor).split('/').pop() + ')'); }),
+        cands.length ? null : h('span', { class: 'sm' }, 'Nothing in the catalog provides this; the kit adds a build-fresh step.'))));
+  });
+  if (settings.length || external.length) {
+    wb.appendChild(h('span', { class: 'sm' }, 'Settings you supply: ' + (settings.join(', ') || 'none')));
+    wb.appendChild(h('span', { class: 'sm' }, 'Outside services: ' + (external.join(', ') || 'none')));
+  }
+  body.appendChild(wb);
+  var lb = h('div', { class: 'stack' }, h('h3', null, 'Licenses against your policy'));
+  list(f.licenses).forEach(function (l) {
+    var deny = String(l.level || '') === 'deny', warn = !deny && (String(l.level || '') === 'warn' || l.review);
+    lb.appendChild(h('span', { class: 'note ' + (deny ? 'red' : warn ? 'open' : 'ok') },
+      (deny ? '✕ ' + l.license + ': on your deny list' : warn ? '⚑ ' + l.license + ': review before you ship' : '✓ ' + l.license + ': permissive') + ' · ' + plural(list(l.parts).length, 'part') +
+      (list(l.parts).length ? ' (' + list(l.parts).join(', ') + ')' : '')));
+  });
+  body.appendChild(lb);
+  var pb = h('div', { class: 'stack' }, h('h3', null, 'Fit to your projects'));
+  if (!list(f.projects).length) pb.appendChild(h('span', { class: 'sm' }, 'No projects registered yet.'));
+  list(f.projects).forEach(function (p) { pb.appendChild(fitBar(p.slug, p.score)); });
+  body.appendChild(pb);
+}
+function renderDetail(body, p) {
+  if (!p) { body.appendChild(h('span', { class: 'sm' }, 'Click any part to see what it does, its checks, interfaces, data shapes and fit.')); return; }
+  body.appendChild(h('div', { class: 'stack', style: 'gap:4px' }, h('span', { style: 'font-size:17px;font-weight:700;overflow-wrap:anywhere' }, p.name),
+    h('span', { class: 'row', style: 'gap:6px;font-size:12px;color:#3F3F46' }, novBadge(p.novelty), p.donor + ' · ' + p.license + ' · ' + num(p.files_count) + ' files read · ' + (p.deepened ? 'read in code' : 'catalog text only'))));
+  var dt = h('div', { role: 'tablist', 'aria-label': 'Part detail', class: 'tabs' });
+  [['overview', 'Overview'], ['checks', 'Checks ' + strs(p.acceptance).length], ['ifaces', 'Interfaces'], ['shapes', 'Shapes & values'], ['fit', 'Fit']].forEach(function (t) {
+    dt.appendChild(h('button', { type: 'button', role: 'tab', class: 'tabb', 'aria-selected': S.dtab === t[0] ? 'true' : 'false', onclick: function () { S.dtab = t[0]; renderRight(); } }, t[1]));
+  });
+  body.appendChild(dt);
+  var pane = h('div', { class: 'stack', role: 'tabpanel', style: 'font-size:13px' });
+  body.appendChild(pane);
+  function lab(t) { return h('span', { style: 'font-size:12px;font-weight:600;color:#52525B' }, t); }
+  if (S.dtab === 'overview') {
+    pane.appendChild(lab('What it does')); pane.appendChild(h('span', { style: 'overflow-wrap:anywhere' }, str(p.what) || 'No description.'));
+    pane.appendChild(lab('Building it clean-room')); pane.appendChild(h('span', { style: 'overflow-wrap:anywhere' }, str(p.design_notes) || 'No notes.'));
+    if (str(p.security)) pane.appendChild(h('span', { class: 'note red' }, 'Security note: ' + str(p.security)));
+    pane.appendChild(h('span', { class: 'sm' }, 'Evidence: ' + (str(p.evidence) || 'none recorded') + (str(p.basis) ? ' (basis: ' + str(p.basis) + ')' : '')));
+    pane.appendChild(h('span', { class: 'sm' }, (p.priority ? 'Priority: ' + str(p.priority) + ' · ' : '') + 'Portability: ' + (str(p.portability) || 'unknown')));
+  } else if (S.dtab === 'checks') {
+    var acc = strs(p.acceptance);
+    pane.appendChild(h('span', { class: 'muted' }, acc.length + ' checks. Each becomes a test the builder must make pass' + (p.deepened ? '; numbers come from the donor code.' : '; deepen to replace estimates with real numbers.')));
+    acc.forEach(function (t) { pane.appendChild(h('span', { class: 'note plain' }, '☐ ' + t)); });
+    if (!acc.length) pane.appendChild(h('span', { class: 'sm' }, 'No checks recorded.'));
+  } else if (S.dtab === 'ifaces') {
+    pane.appendChild(lab('Provides'));
+    pane.appendChild(h('span', { class: 'row', style: 'gap:4px' }, strs(p.provides).map(function (t) { return h('code', { class: 'chip ok' }, t); }), strs(p.provides).length ? null : h('span', { class: 'sm' }, 'Nothing.')));
+    pane.appendChild(lab('Needs'));
+    strs(p.requires).forEach(function (t) {
+      var how, cls = 'chip';
+      if (t.indexOf('config:') === 0) how = 'a setting you supply';
+      else if (t.indexOf('ext:') === 0) how = 'an outside service';
+      else if (inPf(p.id) && providerOf(p, t)) { how = 'from ' + providerOf(p, t); cls = 'chip ok'; }
+      else { how = 'not in your portfolio yet'; cls = 'chip open'; }
+      pane.appendChild(h('span', { class: 'row', style: 'gap:6px' }, h('code', { class: cls }, t), h('span', { class: 'sm' }, how)));
+    });
+    if (!strs(p.requires).length) pane.appendChild(h('span', { class: 'sm' }, 'Nothing: it stands alone.'));
+  } else if (S.dtab === 'shapes') {
+    pane.appendChild(lab('Data shapes'));
+    strs(p.data_shapes).forEach(function (t) { pane.appendChild(h('span', { style: 'overflow-wrap:anywhere' }, '▸ ' + t)); });
+    if (!strs(p.data_shapes).length) pane.appendChild(h('span', { class: 'sm' }, 'None recorded.'));
+    pane.appendChild(lab('Key values'));
+    strs(p.key_values).forEach(function (t) { pane.appendChild(h('code', { class: 'chip', style: 'font-size:12px;padding:3px 6px' }, t)); });
+    if (!strs(p.key_values).length) pane.appendChild(h('span', { class: 'sm' }, 'None recorded.'));
+    if (!p.deepened) pane.appendChild(h('span', { class: 'note open' }, 'Not read in code yet, so shapes and values are thin. Deepening reads the donor (about $0.01) and fills them in field by field.'));
+  } else {
+    var fits = list(p.fits).filter(function (f) { return list(f).length >= 2; });
+    fits.forEach(function (f) { pane.appendChild(fitBar(str(f[0]), f[1])); });
+    if (!fits.length) pane.appendChild(h('span', { class: 'sm' }, 'No fit above 0.20 to a registered project.'));
+    pane.appendChild(lab('Wires to in your portfolio'));
+    var peers = portfolioParts().filter(function (x) {
+      return x.id !== p.id && (strs(x.provides).some(function (t) { return strs(p.requires).indexOf(t) >= 0; }) || strs(p.provides).some(function (t) { return strs(x.requires).indexOf(t) >= 0; }));
+    });
+    peers.forEach(function (x) { pane.appendChild(h('span', null, '↔ ' + x.name)); });
+    if (!peers.length) pane.appendChild(h('span', { class: 'sm' }, 'No shared interfaces with the parts you picked.'));
+  }
+  var denied = isDenied(p);
+  body.appendChild(h('div', { class: 'row' },
+    h('button', { type: 'button', class: 'btn' + (inPf(p.id) ? ' ghost' : ''), disabled: denied && !inPf(p.id), onclick: function () { togglePart(p.id); } }, inPf(p.id) ? 'Remove from portfolio' : (denied ? 'License denied' : 'Add to portfolio')),
+    h('button', { type: 'button', class: 'small', onclick: function (e) { copyText('reincarnate salvage ' + p.id + ' --project <slug>', e.currentTarget); } }, 'Copy salvage command')));
+}
+
+/* ---------- generate options ---------- */
+var estTimer = null;
+function scheduleEstimate() {
+  clearTimeout(estTimer);
+  S.estSeq++;
+  if (S.designer !== 'opus' || S.noToken) { S.est = null; S.estPending = false; renderGen(); return; }
+  S.estPending = true; renderGen();
+  var seq = S.estSeq;
+  estTimer = setTimeout(function () {
+    api('POST', '/api/estimate/design', { options: S.nOpts, pin: S.ids.slice() }).then(function (d) {
+      if (seq !== S.estSeq) return;
+      S.est = d; S.estErr = ''; S.estPending = false; renderGen();
+    }, function (e) { if (seq !== S.estSeq) return; S.est = null; S.estErr = e.message; S.estPending = false; renderGen(); });
+  }, 400);
+}
+function buildGen() {
+  var g = $('gen'); clear(g);
+  g.appendChild(h('div', { class: 'spread', style: 'align-items:baseline' }, h('h2', { style: 'font-size:18px' }, 'Generate options'),
+    h('span', { class: 'muted' }, 'The designer starts from your portfolio and may add parts from the catalog; it never removes one you pinned.')));
+  g.appendChild(h('label', { for: 'idea', class: 'l' }, 'Your idea'));
+  var idea = h('textarea', { id: 'idea', rows: '2', placeholder: 'A homelab control dashboard with a drag-and-drop grid of service tiles and a login…' });
+  idea.value = S.idea;
+  idea.addEventListener('input', function () { S.idea = idea.value; S.gen.err = ''; persist(); renderGen(true); });
+  g.appendChild(idea);
+  g.appendChild(h('div', { class: 'row', style: 'gap:16px' },
+    h('div', { role: 'group', 'aria-label': 'Number of options', class: 'row', style: 'gap:6px', id: 'g-opts' }),
+    h('div', { role: 'group', 'aria-label': 'Designer', class: 'row', style: 'gap:6px', id: 'g-eng' }),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'g-comm' }), 'Let it use commodity parts')));
+  $('g-comm').checked = S.commodity;
+  $('g-comm').addEventListener('change', function (e) { S.commodity = e.target.checked; persist(); renderGen(); });
+  g.appendChild(h('div', { class: 'est' }, h('div', { class: 't', 'aria-live': 'polite' }, h('strong', { id: 'g-head' }), h('span', { class: 'sm', id: 'g-sub' })),
+    h('div', { class: 'row' }, h('button', { type: 'button', class: 'btn', id: 'g-go' }, 'Generate'))));
+  g.appendChild(h('p', { class: 'err-inline', id: 'g-err', role: 'alert', hidden: true }));
+  g.appendChild(h('div', { id: 'g-job' }));
+  g.appendChild(h('div', { class: 'cmds', id: 'g-cmds' }));
+  $('g-go').addEventListener('click', generate);
+  renderGen();
+  scheduleEstimate();
+}
+function renderGen(typing) {
+  if (!$('g-go')) return;
+  var o = $('g-opts'); clear(o);
+  [2, 3, 4].forEach(function (n) {
+    o.appendChild(h('button', { type: 'button', class: 'pillbtn', 'aria-pressed': S.nOpts === n ? 'true' : 'false', 'aria-label': n + ' options', onclick: function () { S.nOpts = n; S.gen.err = ''; persist(); renderGen(); scheduleEstimate(); } }, String(n)));
+  });
+  o.insertBefore(h('span', { class: 'sm', style: 'margin-right:2px' }, 'Options'), o.firstChild);
+  var e = $('g-eng'); clear(e);
+  e.appendChild(h('span', { class: 'sm' }, 'Designer'));
+  [['opus', 'Opus 5.5'], ['session', 'This Claude Code session']].forEach(function (t) {
+    e.appendChild(h('button', { type: 'button', class: 'pillbtn', 'aria-pressed': S.designer === t[0] ? 'true' : 'false', onclick: function () { S.designer = t[0]; persist(); renderGen(); scheduleEstimate(); } }, t[1]));
+  });
+  var live = S.gen.job && isLive(S.gen.job), idea = S.idea.trim();
+  var head, sub;
+  var pins = plural(S.ids.length, 'pinned part') + ', ' + (S.commodity ? 'commodity allowed' : 'commodity excluded');
+  var deepNote = S.fit && num(S.fit.deepen_cost) ? ' · deepening the chosen option later: about ' + money(S.fit.deepen_cost) : '';
+  if (S.designer === 'session') { head = S.nOpts + ' options · designed in your Claude Code session, no extra API cost'; sub = pins + deepNote; }
+  else if (S.estPending) { head = 'Estimating…'; sub = pins; }
+  else if (S.estErr) { head = 'Could not estimate'; sub = S.estErr; }
+  else if (S.est) { head = S.nOpts + ' options · about ' + money(S.est.low) + '-' + money(S.est.high).slice(1) + minutesText(S.est.minutes); sub = pins + ' · ' + str(S.est.basis) + deepNote; }
+  else { head = S.nOpts + ' options'; sub = pins; }
+  $('g-head').textContent = head; $('g-sub').textContent = sub;
+  var go = $('g-go');
+  if (S.designer === 'session') { go.hidden = true; }
+  else {
+    go.hidden = false; go.disabled = !idea || S.noToken || !!live || S.gen.busy;
+    go.textContent = live ? 'Designing…' : 'Generate ' + S.nOpts + ' options';
+  }
+  setErr($('g-err'), S.gen.err);
+  var jb = $('g-job'); clear(jb);
+  if (S.gen.job && S.designer === 'opus') jb.appendChild(jobBox(S.gen.job, 'Designing ' + S.nOpts + ' options', retryGen, S.gen.busy));
+  var cm = $('g-cmds'); clear(cm);
+  var q = '"' + (S.idea.trim() || '<your idea>').replace(/"/g, '\\"') + '"', pin = S.ids.length ? ' --pin ' + S.ids.join(',') : '';
+  if (S.designer === 'session') {
+    cm.appendChild(cmdBox('Claude Code', '/reincarnate:design ' + q + pin));
+    cm.appendChild(cmdBox('CLI', 'reincarnate design ' + q + pin + ' --options ' + S.nOpts + (S.commodity ? ' --include-commodity' : '')));
+  }
+}
+function generate() {
+  if (S.gen.busy) return;
+  S.gen.busy = true; S.gen.err = ''; renderGen();
+  api('POST', '/api/designs', { idea: S.idea.trim(), pin: S.ids.slice(), roles: roleMap(), options: S.nOpts, include_commodity: S.commodity }).then(function (d) {
+    S.gen.busy = false; S.gen.job = d.job && typeof d.job === 'object' ? d.job : { id: d.job, state: 'queued', stages: [], cost_usd: 0 };
+    renderGen(); watchJob(jobId(S.gen.job), onGenJob);
+  }, function (e) { S.gen.busy = false; S.gen.err = e.message; renderGen(); });
+}
+function retryGen() {
+  if (!S.gen.job || S.gen.busy) return;
+  S.gen.busy = true; renderGen();
+  api('POST', '/api/jobs/' + encodeURIComponent(jobId(S.gen.job)) + '/retry', {}).then(function (d) {
+    S.gen.busy = false; S.gen.job = d.job; renderGen(); watchJob(jobId(d.job), onGenJob);
+  }, function (e) { S.gen.busy = false; S.gen.err = e.message; renderGen(); });
+}
+function onGenJob(j) {
+  S.gen.job = j; renderGen();
+  if (j.state === 'done' && j.result && j.result.design_slug) {
+    S.lastDesign = j.result.design_slug; persist(); S.gen = { job: null, err: '', busy: false };
+    go('/design/' + encodeURIComponent(S.lastDesign));
+  }
+}
+
+/* earlier designs */
+function renderEarlier() {
+  var box = $('earlier'); if (!box) return;
+  clear(box);
+  var open = S.designsOpen;
+  box.appendChild(h('div', { class: 'spread' }, h('h2', null, 'Open an earlier design'),
+    h('button', { type: 'button', class: 'small', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'earlier-body', onclick: function () {
+      S.designsOpen = !S.designsOpen;
+      if (S.designsOpen && !S.designs) loadDesigns();
+      renderEarlier();
+      var b = $('earlier').querySelector('button[aria-expanded]'); if (b) b.focus();
+    } }, open ? 'Hide' : 'Show')));
+  if (!open) return;
+  var body = h('div', { class: 'stack', id: 'earlier-body' });
+  if (S.designsErr) body.appendChild(h('p', { class: 'err-inline', role: 'alert' }, S.designsErr));
+  else if (!S.designs) body.appendChild(h('span', { class: 'muted' }, 'Loading…'));
+  else if (!S.designs.length) body.appendChild(h('span', { class: 'muted' }, 'No designs yet.'));
+  (S.designs || []).forEach(function (d) {
+    body.appendChild(h('div', { class: 'li' }, h('div', { class: 'spread' }, h('a', { href: (DEMO ? '#demo' : '#') + '/design/' + encodeURIComponent(d.slug), style: 'font-weight:600;overflow-wrap:anywhere' }, d.title || d.slug),
+      h('span', { class: 'muted' }, [plural(num(d.options), 'option'), str(d.engine), str(d.created)].filter(Boolean).join(' · '))), h('span', { class: 'sm' }, str(d.idea))));
+  });
+  box.appendChild(body);
+}
+function loadDesigns() {
+  if (S.noToken) return;
+  api('GET', '/api/designs').then(function (d) { S.designs = list(d.designs); S.designsErr = ''; renderEarlier(); },
+    function (e) { S.designsErr = 'Could not list designs: ' + e.message; renderEarlier(); });
+}
+
+/* ---------- design compare view ---------- */
+var DV = { design: null, slug: '', sel: '', err: '', pickOpen: false, target: 'new', newName: '', dirPath: '', formErr: '', busy: false, problems: null, comp: null };
+function buildDesignView(slug) {
+  var root = $('view'); clear(root);
+  if (DV.slug !== slug) { DV = { design: null, slug: slug, sel: '', err: '', pickOpen: false, target: 'new', newName: '', dirPath: '', formErr: '', busy: false, problems: null, comp: null }; }
+  if (!S.cat) loadCatalog();
+  if (DV.design) { renderDesign(); return; }
+  root.appendChild(h('span', { class: 'muted', role: 'status' }, 'Loading the design…'));
+  if (S.noToken) { clear(root); root.appendChild(h('p', { class: 'err-inline', role: 'alert' }, 'No access token, so the design cannot be loaded.')); return; }
+  var seq = S.viewSeq;
+  api('GET', '/api/designs/' + encodeURIComponent(slug)).then(function (d) {
+    if (seq !== S.viewSeq) return;
+    DV.design = d; DV.sel = DV.sel || (list(d.options)[0] || {}).slot || ''; S.lastDesign = slug; persist(); renderNav(); renderDesign();
+  }, function (e) { if (seq !== S.viewSeq) return; clear(root); root.appendChild(h('p', { class: 'err-inline', role: 'alert' }, 'Could not load the design: ' + e.message)); });
+}
+function renderDesign() {
+  var root = $('view'); clear(root);
+  var d = DV.design, opts = list(d.options), sel = opts.filter(function (o) { return o.slot === DV.sel; })[0] || opts[0];
+  var stack = h('div', { style: 'display:flex;flex-direction:column;gap:16px' });
+  root.appendChild(stack);
+  stack.appendChild(h('div', { class: 'stack', style: 'gap:6px' }, h('span', { class: 'muted', style: 'font-size:13px' }, 'Reincarnate · Design compare'), h('h1', { tabindex: '-1', id: 'view-h' }, d.title || d.slug),
+    h('p', { style: 'margin:0;color:#3F3F46;max-width:920px;overflow-wrap:anywhere' }, str(d.idea)), typeof d.meta === 'string' && d.meta ? h('span', { class: 'muted' }, d.meta) : h('span', { class: 'muted' }, plural(list(d.requirements).length, 'requirement') + ' · ' + plural(opts.length, 'option'))));
+  stack.appendChild(h('div', { class: 'optgrid', role: 'group', 'aria-label': 'Options' }, opts.map(function (o) {
+    var w = (o.wiring || {}).counts || {}, sc = o.scores || {};
+    return h('button', { type: 'button', class: 'optcard', 'aria-pressed': o === sel ? 'true' : 'false', onclick: function () { DV.sel = o.slot; DV.pickOpen = false; renderDesign(); var b = document.querySelector('.optcard[data-slot="' + o.slot + '"]'); if (b) b.focus(); }, 'data-slot': o.slot },
+      h('span', { class: 'slot' }, o.slot_label || cap(o.slot)), h('span', { class: 'nm' }, o.name), h('span', { style: 'font-size:13px;color:#27272A' }, str(o.pitch)), h('code', null, str(o.stack)),
+      h('span', { class: 'm3' }, h('span', null, h('span', { class: 'k' }, 'Reuse'), h('span', { class: 'v' }, pct(sc.reuse))), h('span', null, h('span', { class: 'k' }, 'Fit'), h('span', { class: 'v' }, pct(sc.fit))), h('span', null, h('span', { class: 'k' }, 'Parts'), h('span', { class: 'v' }, list(o.parts).length))),
+      h('span', { class: 'sm' }, 'Wiring: ' + num(w.wired) + ' wired · ' + num(w.unmet) + ' unmet · ' + num(w.settings) + ' settings · ' + num(w.external) + ' external'));
+  })));
+  /* coverage matrix */
+  var head = h('tr', null, h('th', { scope: 'col' }, 'Requirement'), opts.map(function (o) { return h('th', { scope: 'col', class: o === sel ? 'sel' : '' }, o.name); }));
+  var rows = list(d.requirements).map(function (r) {
+    return h('tr', null, h('th', { scope: 'row', style: 'font-weight:400;color:#18181B;min-width:240px' }, h('code', { style: 'color:#1D4ED8' }, r.id), ' ' + str(r.text)),
+      opts.map(function (o) {
+        var c = list(o.coverage).filter(function (x) { return x.req === r.id; })[0] || { kind: 'net-new', cap: '' };
+        var kind = c.kind === 'catalog' || c.kind === 'glue' ? c.kind : 'net-new';
+        return h('td', { class: kind + (o === sel ? ' sel' : '') }, kind === 'catalog' ? (partName(o, c.cap) || 'catalog part') : kind === 'glue' ? 'glue code' : 'net-new');
+      }));
+  });
+  stack.appendChild(h('section', { class: 'card', 'aria-label': 'Requirement coverage' },
+    h('div', { class: 'spread' }, h('h2', null, 'Requirement coverage'),
+      h('span', { class: 'row', style: 'gap:14px;font-size:12px;color:#3F3F46' }, h('span', null, h('span', { class: 'sw', style: 'background:#1D4ED8' }), ' catalog part'), h('span', null, h('span', { class: 'sw', style: 'background:#93C5FD' }), ' glue code'), h('span', null, h('span', { class: 'sw', style: 'background:#D4D4CE' }), ' net-new'))),
+    h('div', { class: 'mxbox', tabindex: '0', role: 'region', 'aria-label': 'Coverage matrix, scrolls sideways' }, h('table', { class: 'mx' }, h('thead', null, head), h('tbody', null, rows)))));
+  if (sel) {
+    var wr = list((sel.wiring || {}).wired), um = list((sel.wiring || {}).unmet);
+    stack.appendChild(h('section', { class: 'detgrid', 'aria-label': 'Selected option detail' },
+      h('div', { class: 'card' }, h('h3', null, sel.name + ': parts'), list(sel.parts).map(function (p) {
+        return h('div', { class: 'li' }, h('span', { style: 'font-size:13px;font-weight:500;overflow-wrap:anywhere' }, p.name, p.pinned ? h('span', { class: 'pin' }, 'pinned') : null), h('span', { class: 'sm' }, p.donor + ' · ' + (p.license || '') + ' · ' + str(p.role)));
+      })),
+      h('div', { class: 'card' }, h('h3', null, 'How the parts connect'), wr.map(function (t) { return h('span', { class: 'note ok' }, '✓ ' + str(t)); }), um.map(function (t) { return h('span', { class: 'note open' }, '○ ' + str(t)); }),
+        !wr.length && !um.length ? h('span', { class: 'sm' }, 'These parts do not depend on each other, so there are no links to check.') : null, strs(sel.flags).map(function (t) { return h('span', { class: 'sm' }, '⚑ ' + t); })),
+      h('div', { class: 'card' }, h('h3', null, 'Code you write yourself'), h('span', { style: 'font-size:12px;font-weight:600;color:#52525B' }, 'Glue'),
+        strs(sel.glue).map(function (t) { return h('span', { class: 'sm' }, '• ' + t); }), strs(sel.glue).length ? null : h('span', { class: 'sm' }, 'None.'),
+        h('span', { style: 'font-size:12px;font-weight:600;color:#52525B' }, 'Net-new'), strs(sel.new_work).map(function (t) { return h('span', { class: 'sm' }, '• ' + t); }), strs(sel.new_work).length ? null : h('span', { class: 'sm' }, 'None.'),
+        h('code', { class: 'chip', style: 'background:#18181B;color:#F4F4F5;padding:8px 10px;font-size:11px' }, 'reincarnate design pick ' + d.slug + ' ' + sel.slot + ' --target new:' + String(sel.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')))));
+    stack.appendChild(pickPanel(sel));
+  }
+}
+function pickPanel(sel) {
+  var card = h('section', { class: 'card', 'aria-label': 'Use this option' });
+  card.appendChild(h('div', { class: 'spread' }, h('span', { class: 'sm' }, 'Happy with "' + sel.name + '"? Pick it into a composition and choose where the kit goes.'),
+    h('button', { type: 'button', class: 'btn green', id: 'use-opt', 'aria-expanded': DV.pickOpen ? 'true' : 'false', 'aria-controls': 'pick-form', onclick: function () { DV.pickOpen = !DV.pickOpen; renderDesign(); $('use-opt').focus(); } }, 'Use this option')));
+  if (!DV.pickOpen) return card;
+  var projects = S.cat ? S.cat.projects : [];
+  var form = h('form', { id: 'pick-form', class: 'stack', novalidate: true });
+  var fs = h('fieldset', null, h('legend', null, 'Where should the kit be built?'));
+  function radio(val, label, extra) {
+    var r = h('input', { type: 'radio', name: 'target', id: 'tg-' + val.replace(/[^a-z0-9]/gi, '_'), value: val });
+    r.checked = DV.target === val;
+    r.addEventListener('change', function () { DV.target = val; });
+    return h('label', { class: 'radio' }, r, label, extra || null);
+  }
+  projects.forEach(function (slug) { fs.appendChild(radio('proj:' + slug, 'Existing project: ' + (typeof slug === 'string' ? slug : str(slug)))); });
+  if (!projects.length) fs.appendChild(h('span', { class: 'muted' }, 'No registered projects yet (register one on the ingestion page).'));
+  var nn = h('input', { type: 'text', 'aria-label': 'New project name', placeholder: 'new project name', autocomplete: 'off', spellcheck: 'false' });
+  nn.value = DV.newName; nn.addEventListener('input', function () { DV.newName = nn.value; DV.target = 'new'; $('tg-new').checked = true; });
+  fs.appendChild(radio('new', 'New project:', nn));
+  var dp = h('input', { type: 'text', 'aria-label': 'Absolute directory path', placeholder: '/Users/you/projects/my-app', autocomplete: 'off', spellcheck: 'false' });
+  dp.value = DV.dirPath; dp.addEventListener('input', function () { DV.dirPath = dp.value; DV.target = 'dir'; $('tg-dir').checked = true; });
+  fs.appendChild(radio('dir', 'Directory:', dp));
+  form.appendChild(fs);
+  form.appendChild(h('p', { class: 'err-inline', role: 'alert', hidden: !DV.formErr }, DV.formErr));
+  if (DV.problems) {
+    form.appendChild(h('div', { class: 'banner warn', role: 'alert' }, h('strong', null, 'Problems with this pick: '), h('ul', { style: 'margin:6px 0 0;padding-left:18px' }, DV.problems.map(function (p) { return h('li', null, str(p)); }))));
+    form.appendChild(h('div', null, h('button', { type: 'button', class: 'btn', onclick: function () { go('/kit/' + encodeURIComponent(DV.comp.slug)); } }, 'Continue to the kit preview anyway')));
+  } else {
+    form.appendChild(h('div', null, h('button', { type: 'submit', class: 'btn', disabled: DV.busy }, DV.busy ? 'Picking…' : 'Pick and preview the kit')));
+  }
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var target = '';
+    if (DV.target.indexOf('proj:') === 0) target = DV.target.slice(5);
+    else if (DV.target === 'new') {
+      var name = DV.newName.trim();
+      if (!name) { DV.formErr = 'Enter a name for the new project.'; renderDesign(); return; }
+      if (/[\/\s]/.test(name)) { DV.formErr = 'A project name has no spaces or slashes. Use the directory choice for a path.'; renderDesign(); return; }
+      target = 'new:' + name;
+    } else {
+      var dir = DV.dirPath.trim();
+      if (dir.charAt(0) !== '/') { DV.formErr = 'Enter an absolute directory path (it starts with /).'; renderDesign(); return; }
+      target = dir;
+    }
+    DV.formErr = ''; DV.busy = true; renderDesign();
+    api('POST', '/api/designs/' + encodeURIComponent(DV.slug) + '/pick', { option: sel.slot, target: target }).then(function (d) {
+      DV.busy = false;
+      var c = d.composition || {};
+      DV.comp = c; S.lastComp = c.slug; S.targets[c.slug] = target; persist(); renderNav();
+      if (list(c.problems).length) { DV.problems = list(c.problems); renderDesign(); }
+      else go('/kit/' + encodeURIComponent(c.slug));
+    }, function (e) { DV.busy = false; DV.formErr = e.message; renderDesign(); });
+  });
+  card.appendChild(form);
+  return card;
+}
+
+/* ---------- kit preview view ---------- */
+var KV = null;
+var KIND_LABEL = { scaffold: 'Scaffold', cap: 'Catalog part', gap: 'Build fresh', glue: 'Glue' };
+function buildKitView(slug) {
+  var root = $('view'); clear(root);
+  if (!KV || KV.slug !== slug) KV = { slug: slug, ans: null, pv: null, err: '', deepen: true, force: false, job: null, jobErr: '', busy: false };
+  S.lastComp = slug; persist(); renderNav();
+  if (S.noToken) { root.appendChild(h('p', { class: 'err-inline', role: 'alert' }, 'No access token, so the kit cannot be previewed.')); return; }
+  var target = S.targets[slug] || '';
+  if (KV.pv) { renderKit(); if (KV.job && isLive(KV.job)) watchJob(jobId(KV.job), onKitJob); return; }
+  root.appendChild(h('span', { class: 'muted', role: 'status' }, 'Rendering the kit in memory…'));
+  var seq = S.viewSeq;
+  api('POST', '/api/kits/preview', { composition: slug, target: target }).then(function (d) {
+    if (seq !== S.viewSeq) return;
+    KV.pv = d; KV.err = ''; renderKit();
+  }, function (e) { if (seq !== S.viewSeq) return; clear(root); root.appendChild(h('p', { class: 'err-inline', role: 'alert' }, 'Could not preview the kit: ' + e.message)); });
+}
+function isHardRefusal(lines) { return lines.some(function (l) { return /missing|no longer in the catalog|retired|not in the catalog/i.test(l); }); }
+function renderKit() {
+  var root = $('view'); clear(root);
+  var pv = KV.pv, t = pv.target || {}, steps = list(pv.steps), warns = strs(pv.warnings), ref = strs(pv.refusal), dp = pv.deepen || {};
+  var stack = h('div', { style: 'display:flex;flex-direction:column;gap:16px' });
+  root.appendChild(stack);
+  stack.appendChild(h('div', { class: 'stack', style: 'gap:6px' }, h('span', { class: 'muted', style: 'font-size:13px' }, 'Reincarnate · Kit preview'), h('h1', { id: 'view-h', tabindex: '-1' }, KV.slug)));
+  stack.appendChild(h('section', { class: 'card', 'aria-label': 'Target' }, h('h2', null, 'Target'),
+    h('div', { class: 'row', style: 'gap:6px' }, h('code', { class: 'chip', style: 'font-size:12px' }, str(t.dir)), h('span', { class: 'chip', style: 'font-size:12px' }, t.kind === 'new' ? 'new project' : 'existing project')),
+    h('span', { class: 'sm' }, 'Stack: ' + ((Array.isArray(t.stack) ? t.stack.join(', ') : str(t.stack)) || 'not detected') + ' · tests run with '), h('code', { class: 'chip', style: 'font-size:12px;align-self:flex-start' }, str(t.test_cmd) || '(none)')));
+  var needed = typeof dp.needed === 'number' ? dp.needed : (dp.needed ? 1 : 0);
+  var decs = list(pv.decisions);
+  if (decs.length) {
+    if (!KV.ans) {
+      KV.ans = {};
+      decs.forEach(function (d) {
+        var a = str(d.answer);
+        KV.ans[d.id] = a ? (strs(d.options).indexOf(a) >= 0 ? { choice: a, other: '' } : { choice: OTHER, other: a }) : { choice: str(d.default), other: '' };
+      });
+    }
+    stack.appendChild(h('section', { class: 'card', 'aria-label': 'Decisions' }, h('h2', null, plural(decs.length, 'open decision')),
+      h('span', { class: 'sm' }, 'The requirements leave these open. Answer them now or the builder uses the preselected defaults.'),
+      decs.map(decisionField)));
+  }
+  stack.appendChild(h('section', { class: 'card', 'aria-label': 'Steps' }, h('div', { class: 'spread' }, h('h2', null, plural(steps.length, 'step') + ' in build order'),
+    h('span', { class: 'muted' }, needed ? plural(needed, 'part') + ' not read in code yet · deepen costs about ' + money(dp.cost) : 'Every part is read in code')),
+    h('ol', { class: 'kit' }, steps.map(function (s, i) {
+      var pid = 'spec-' + i, hasSpec = !!str(s.spec_head);
+      var pre = h('pre', { class: 'spec', id: pid, hidden: true }, str(s.spec_head));
+      var btn = h('button', { type: 'button', class: 'small mini', 'aria-expanded': 'false', 'aria-controls': pid, disabled: !hasSpec, onclick: function () {
+        var open = btn.getAttribute('aria-expanded') !== 'true';
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false'); btn.textContent = open ? 'Hide spec' : 'Show spec'; pre.hidden = !open;
+      } }, 'Show spec');
+      return h('li', null,
+        h('div', { class: 'row', style: 'flex-wrap:nowrap;align-items:flex-start' }, h('span', { class: 'kn' }, String(s.n).padStart(2, '0')),
+          h('div', { class: 'stack', style: 'gap:4px;flex:1' }, h('span', { style: 'font-weight:600;overflow-wrap:anywhere' }, s.title),
+            h('div', { class: 'row', style: 'gap:6px' }, h('span', { class: 'kind ' + str(s.kind) }, KIND_LABEL[s.kind] || str(s.kind)), s.donor ? h('span', { class: 'sm' }, s.donor) : null,
+              s.kind === 'cap' ? h('span', { class: 'chip ' + (s.deepened ? 'ok' : 'open') }, s.deepened ? 'read in code' : 'catalog text only') : null,
+              s.guard_note ? h('span', { class: 'chip', style: 'background:#FEF3C7;color:#78350F', title: 'Endpoints in this step go through the authorization guard, which allows everything until the login step' }, 'guard note') : null,
+              h('span', { class: 'sm' }, plural(num(s.checks), 'check'))),
+            strs(s.needs).length ? h('div', { class: 'row', style: 'gap:4px' }, h('span', { class: 'muted' }, 'Needs'), strs(s.needs).map(function (n) { return h('span', { class: 'chip' }, n); })) : null),
+          btn),
+        pre);
+    }))));
+  if (warns.length) stack.appendChild(h('div', { class: 'banner warn', role: 'status' }, h('strong', null, 'Warnings'), h('ul', { style: 'margin:6px 0 0;padding-left:18px' }, warns.map(function (w) { return h('li', null, w); }))));
+  var hard = ref.length && isHardRefusal(ref);
+  if (ref.length) {
+    var fcb = null;
+    if (!hard) {
+      fcb = h('input', { type: 'checkbox', id: 'force-cb' }); fcb.checked = KV.force;
+      fcb.addEventListener('change', function () { KV.force = fcb.checked; syncKitBtn(); });
+    }
+    stack.appendChild(h('div', { class: 'banner err', role: 'alert' }, h('strong', null, 'The kit will not be written as it stands'), h('ul', { style: 'margin:6px 0 0;padding-left:18px' }, ref.map(function (r) { return h('li', null, r); })),
+      hard ? h('p', { style: 'margin:8px 0 0' }, 'Parts are missing from the catalog, so there is nothing safe to write. Pick the option again with the parts that exist.')
+        : h('p', { style: 'margin:8px 0 0' }, 'Writing over ticked or hand-edited steps replaces that work. Only do it if you mean to.'),
+      fcb ? h('label', { class: 'check' }, fcb, 'Write anyway with --force') : null));
+  }
+  var dcb = h('input', { type: 'checkbox', id: 'deepen-cb' }); dcb.checked = KV.deepen;
+  dcb.addEventListener('change', function () { KV.deepen = dcb.checked; });
+  var go2 = h('button', { type: 'button', class: 'btn green', id: 'kit-go', onclick: writeKit }, 'Write the kit');
+  stack.appendChild(h('section', { class: 'card', 'aria-label': 'Write the kit' }, h('h2', null, 'Write the kit'),
+    h('label', { class: 'check' }, dcb, 'Deepen the parts that are not read in code first' + (needed ? ' (about ' + money(dp.cost) + ')' : '')),
+    h('div', { class: 'row' }, go2, h('span', { class: 'sm' }, 'Writes ' + (str(t.dir) || 'the target') + '/.reincarnate, CLAUDE.md, tasks.md and one spec per step. Nothing is built.')),
+    h('p', { class: 'err-inline', id: 'kit-err', role: 'alert', hidden: true }), h('div', { id: 'kit-job' }), h('div', { id: 'kit-done' })));
+  syncKitBtn(); renderKitJob();
+  function syncKitBtn() {
+    var b = $('kit-go'); if (!b) return;
+    b.disabled = KV.busy || !!(KV.job && isLive(KV.job)) || (ref.length > 0 && (hard || !KV.force));
+  }
+  KV.sync = syncKitBtn;
+}
+var OTHER = '__other__';
+function decisionField(d) {
+  var st = KV.ans[d.id], opts = strs(d.options), name = 'dec-' + d.id;
+  var other = h('input', { type: 'text', 'aria-label': 'Other answer for ' + d.id, placeholder: 'Other: type your own answer', autocomplete: 'off', maxlength: '2000' });
+  other.value = st.other;
+  other.addEventListener('input', function () { st.other = other.value; st.choice = OTHER; orad.checked = true; });
+  var orad = h('input', { type: 'radio', name: name, id: name + '-other' });
+  orad.checked = st.choice === OTHER;
+  orad.addEventListener('change', function () { st.choice = OTHER; });
+  var fs = h('fieldset', null, h('legend', null, d.id + '. ' + str(d.question)));
+  if (str(d.why)) fs.appendChild(h('span', { class: 'sm' }, str(d.why)));
+  if (list(d.steps).length) fs.appendChild(h('span', { class: 'sm' }, 'Affects ' + list(d.steps).map(function (n) { return 'step ' + n; }).join(', ')));
+  opts.forEach(function (o, i) {
+    var r = h('input', { type: 'radio', name: name, id: name + '-' + i });
+    r.checked = st.choice === o;
+    r.addEventListener('change', function () { st.choice = o; });
+    fs.appendChild(h('label', { class: 'radio' }, r, o, o === str(d.default) ? h('span', { class: 'chip' }, 'default') : null));
+  });
+  fs.appendChild(h('label', { class: 'radio' }, orad, other));
+  if (str(d.answer)) fs.appendChild(h('span', { class: 'sm' }, 'Saved answer: ' + str(d.answer)));
+  return fs;
+}
+function decisionAnswers() {
+  var out = {};
+  list(KV.pv.decisions).forEach(function (d) {
+    var st = KV.ans && KV.ans[d.id]; if (!st) return;
+    var v = st.choice === OTHER ? st.other.trim() : st.choice;
+    if (v) out[d.id] = { question: d.question, answer: v };
+  });
+  return out;
+}
+function writeKit() {
+  if (KV.busy) return;
+  KV.busy = true; KV.jobErr = ''; KV.sync(); setErr($('kit-err'), '');
+  api('POST', '/api/kits', { composition: KV.slug, target: S.targets[KV.slug] || '', deepen: KV.deepen, force: KV.force, answers: decisionAnswers() }).then(function (d) {
+    KV.busy = false; KV.job = d.job && typeof d.job === 'object' ? d.job : { id: d.job, state: 'queued', stages: [], cost_usd: 0 };
+    KV.sync(); renderKitJob(); watchJob(jobId(KV.job), onKitJob);
+  }, function (e) { KV.busy = false; KV.sync(); setErr($('kit-err'), e.message); });
+}
+function retryKit() {
+  if (!KV.job || KV.busy) return;
+  KV.busy = true; renderKitJob();
+  api('POST', '/api/jobs/' + encodeURIComponent(jobId(KV.job)) + '/retry', {}).then(function (d) {
+    KV.busy = false; KV.job = d.job; KV.sync(); renderKitJob(); watchJob(jobId(d.job), onKitJob);
+  }, function (e) { KV.busy = false; setErr($('kit-err'), e.message); renderKitJob(); });
+}
+function onKitJob(j) { KV.job = j; if (KV.sync) KV.sync(); renderKitJob(); }
+function renderKitJob() {
+  var jb = $('kit-job'), dn = $('kit-done'); if (!jb) return;
+  clear(jb); clear(dn);
+  if (!KV.job) return;
+  jb.appendChild(jobBox(KV.job, 'Writing the kit', retryKit, KV.busy));
+  if (KV.job.state !== 'done') return;
+  // kit_dir is the .reincarnate folder; the session opens in, and run.sh lives under, the project
+  var r = KV.job.result || {}, dir = (str(r.kit_dir) || str((KV.pv.target || {}).dir)).replace(/\/\.reincarnate\/?$/, '');
+  dn.appendChild(h('div', { class: 'stack' },
+    h('div', { class: 'banner ok', role: 'status' }, h('strong', null, 'Kit written. '), plural(num(r.steps), 'step') + ' in ' + dir + '.'),
+    list(r.warnings).length ? h('div', { class: 'banner warn' }, strs(r.warnings).join(' ')) : null,
+    h('div', { class: 'card', style: 'background:#18181B;color:#F4F4F5;border-color:#18181B' }, h('h3', null, 'Next: build it, one step at a time'),
+      h('span', { style: 'font-size:13px;color:#D4D4D8' }, 'Open a fresh Claude Code session in ' + dir + ' and run:'),
+      cmdBox('Claude Code', '/reincarnate:build'),
+      h('span', { style: 'font-size:13px;color:#D4D4D8' }, 'Or run it unattended from a terminal:'),
+      cmdBox('Terminal', 'bash ' + dir + '/.reincarnate/run.sh'))));
+}
+
+/* ---------- router ---------- */
+function render() {
+  S.viewSeq++;
+  stopWatch();
+  renderNav();
+  var r = routeOf(), m;
+  if ((m = /^\/design\/([^/]+)$/.exec(r))) buildDesignView(decodeURIComponent(m[1]));
+  else if ((m = /^\/kit\/([^/]+)$/.exec(r))) buildKitView(decodeURIComponent(m[1]));
+  else { buildPortfolioView(); if (!S.cat) loadCatalog(); }
+  var hd = $('view-h'); if (hd) hd.focus();
+}
+window.addEventListener('hashchange', function () {
+  var mm = /(?:^#|&)t=([^&]+)/.exec(location.hash || '');
+  if (mm && !DEMO) {
+    try { TOKEN = decodeURIComponent(mm[1]); } catch (e) { TOKEN = mm[1]; }
+    tryStore('set', TOKEN_KEY, TOKEN);
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file: pages */ }
+    S.noToken = false; S.staleToken = false; renderNotices();
+    S.cat = null; S.fit = null; S.designs = null;
+  }
+  render();
+});
+
+/* ---------- boot ---------- */
+renderNotices();
+render();
+})();
+</script>
+</body>
+</html>

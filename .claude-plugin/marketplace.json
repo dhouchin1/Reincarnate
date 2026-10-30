@@ -1,0 +1,16 @@
+{
+  "name": "reincarnate",
+  "description": "Reincarnate — comprehend repos, keep the ideas, rebuild them as yours.",
+  "owner": {
+    "name": "Dan Houchin",
+    "url": "https://github.com/dhouchin1"
+  },
+  "plugins": [
+    {
+      "name": "reincarnate",
+      "source": "./",
+      "description": "Comprehend any repo, keep the ideas, rebuild them as yours — a clean-room capability catalog and app composer.",
+      "version": "0.5.0"
+    }
+  ]
+}

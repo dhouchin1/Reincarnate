@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reincarnate: build your catalog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+:root{--ink:#18181B;--ink2:#3F3F46;--muted:#52525B;--accent:#1D4ED8;--accent-d:#1E3A8A;--green:#15803D;--line:#DEDED9;--bg:#F6F6F3;--card:#fff}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
+button,input,textarea{font:inherit;color:inherit}
+code,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--accent)}a:hover{color:var(--accent-d)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h2{margin:0;font-size:18px}
+.wrap{max-width:1376px;margin:0 auto;padding:22px 32px 44px;display:flex;flex-direction:column;gap:18px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.spread{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.title{font-size:22px;font-weight:700}
+.muted{color:var(--muted);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px;font-size:12px;border:1px solid var(--line);background:#fff;color:var(--ink2);max-width:100%;overflow-wrap:anywhere}
+.pill.ok{background:#ECFDF3;color:#14532D;border-color:#A7E3BE}
+.pill.bad{background:#FFF7E6;color:#7A4B00;border-color:#F1D49B}
+.dot{width:8px;height:8px;border-radius:4px;background:var(--green);flex:none}
+.pill.bad .dot{background:#B45309}
+nav{display:flex;flex-wrap:wrap;gap:8px}
+.nav{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border-radius:10px;font-weight:500;border:1px solid #C9C9C3;background:#fff;color:#27272A}
+.nav .num{display:inline-flex;width:22px;height:22px;border-radius:11px;background:#E7E7E2;font-size:12px;align-items:center;justify-content:center}
+.nav.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:600}
+.nav.on .num{background:#fff;color:var(--ink)}
+a.nav{text-decoration:none}
+.banner{border-radius:10px;padding:12px 14px;font-size:13px;border:1px solid}
+.banner.warn{background:#FFF7E6;border-color:#F1D49B;color:#5C3A00}
+.banner.err{background:#FDECEC;border-color:#F3B4B4;color:#7F1D1D}
+.banner.info{background:#EEF2FF;border-color:#C7D2FE;color:var(--accent-d)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font-size:24px;font-weight:700;letter-spacing:-.01em;overflow-wrap:anywhere}
+.tile .s{font-size:12px;color:var(--ink2)}
+.cols{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+section.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+section.card.side{padding:18px;gap:10px}
+section.card.side h2{font-size:16px}
+label.l{font-size:13px;font-weight:600}
+textarea,input[type=text]{border:1px solid #C9C9C3;border-radius:10px;padding:10px 12px;background:#fff;width:100%;min-width:0}
+textarea{min-height:84px;resize:vertical}
+.toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+legend{font-size:12px;font-weight:600;color:var(--ink2);padding:0 4px}
+.opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-height:52px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;width:100%}
+.opt[aria-pressed=true]{border:2px solid var(--accent);background:#EEF2FF;padding:7px 9px}
+.opt b{font-size:13px}.opt span{font-size:12px;color:var(--ink2)}
+.check{display:flex;gap:10px;align-items:center;min-height:44px;font-size:13px}
+.check input{width:20px;height:20px;flex:none}
+.est{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:#F7F7F4;border-radius:10px;padding:12px 14px}
+.est .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 240px}
+.est strong{font-size:14px}
+.est .sub{font-size:12px;color:var(--ink2)}
+.btn{min-height:44px;padding:8px 20px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+.btn:hover:not(:disabled){background:var(--accent-d)}
+.btn:disabled{background:#E7E7E2;border-color:#C9C9C3;color:var(--muted);cursor:not-allowed}
+.btn.dark{border-color:var(--ink);background:var(--ink);padding:6px 16px}
+.btn.dark:hover:not(:disabled){background:#000}
+.small{min-height:40px;padding:6px 14px;border-radius:8px;border:1px solid #C9C9C3;background:#fff;cursor:pointer;font-weight:600;font-size:13px}
+.small:disabled{opacity:.55;cursor:not-allowed}
+.small.danger{border-color:#B91C1C;color:#7F1D1D}
+.small.mini{min-height:36px;font-size:12px;font-weight:500;padding:4px 10px}
+.err-inline{color:#B91C1C;font-size:13px;margin:0}
+.tab{min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid #C9C9C3;background:#fff;cursor:pointer;font-size:13px}
+.tab[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+article.job{display:flex;flex-direction:column;gap:8px;border-radius:10px;padding:12px 14px;border:1px solid var(--line);background:#fff;min-width:0}
+article.job.failed{border-color:#F3B4B4;background:#FFFBFB}
+.job .top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline}
+.job .name{font-weight:600;overflow-wrap:anywhere}
+.st{font-size:12px;font-weight:600}
+.st.done{color:#14532D}.st.failed{color:#B91C1C}.st.running{color:var(--accent)}.st.queued,.st.cancelled{color:var(--muted)}
+.stage{font-size:11px;padding:3px 8px;border-radius:999px;background:#F1F1EE;color:var(--muted);border:1px solid #E7E7E2}
+.stage.done{background:#DCFCE7;color:#14532D;border-color:#A7E3BE}
+.stage.running{background:#DBEAFE;color:var(--accent-d);border-color:#93C5FD}
+.stage.failed{background:#FDECEC;color:#7F1D1D;border-color:#F3B4B4}
+.stage.skipped{border-style:dashed}
+.detail{font-size:13px;color:#27272A;overflow-wrap:anywhere}
+.cause{font-size:13px;color:#7F1D1D;background:#FDECEC;border-radius:8px;padding:8px 10px;overflow-wrap:anywhere;white-space:pre-wrap}
+.mix{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#E7E7E2;max-width:360px;width:100%}
+.mix.thin{height:6px;border-radius:3px;max-width:none}
+.mix i{display:block;height:100%}
+.mix .d{background:var(--accent-d)}.mix .p{background:#93C5FD}.mix .c{background:#C4C4BC}
+code.chip{background:var(--ink);color:#F4F4F5;border-radius:6px;padding:6px 10px;font-size:12px;overflow-wrap:anywhere}
+.item{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid #EFEFEA}
+.item .r{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.item .r>*{min-width:0;overflow-wrap:anywhere}
+.item .sm{font-size:12px;color:var(--ink2);overflow-wrap:anywhere}
+.open{display:flex;flex-direction:column;gap:4px;background:#F7F7F4;border-radius:8px;padding:8px 10px}
+.open code{font-size:11px;color:var(--accent-d);overflow-wrap:anywhere}
+.cmdrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.form{display:flex;gap:8px;flex-wrap:wrap}
+.form input{flex:1 1 180px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(max-width:900px){.cols{grid-template-columns:minmax(0,1fr)}.wrap{padding:16px 16px 32px}}
+@media(prefers-reduced-motion:no-preference){.btn,.opt,.tab,.small{transition:background-color .15s,border-color .15s}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="spread">
+    <div class="row" style="gap:14px;align-items:baseline">
+      <span class="title">Reincarnate</span><span class="muted" style="font-size:14px">Design studio</span>
+    </div>
+    <div class="row">
+      <span class="pill" id="auth-pill"><span class="dot"></span><span id="auth-text">Headless claude: checking</span></span>
+      <span class="pill" id="profile-pill">Profile: loading</span>
+    </div>
+  </div>
+  <nav aria-label="Studio">
+    <span class="nav on" aria-current="page"><span class="num">1</span>Ingestion: build your catalog</span>
+    <a class="nav" id="nav-studio" href="/studio"><span class="num">2</span>Design your app</a>
+  </nav>
+</header>
+
+<div id="notices" style="display:flex;flex-direction:column;gap:10px"></div>
+
+<section class="tiles" aria-label="Catalog health" id="tiles"></section>
+
+<div class="cols">
+<div class="col">
+
+<section class="card" aria-label="Add repos">
+  <div class="spread" style="align-items:baseline">
+    <h2>Add repos to your catalog</h2>
+    <span class="muted">Read-only clone, git hooks off, nothing in the repo is ever run</span>
+  </div>
+  <label class="l" for="repos">GitHub repos, one per line</label>
+  <textarea id="repos" rows="3" placeholder="louislam/uptime-kuma&#10;https://github.com/encode/httpx" spellcheck="false" autocapitalize="off"></textarea>
+  <div class="row" id="suggest-row" hidden><span class="muted">Suggestions:</span><span class="row" id="suggest"></span></div>
+  <p class="err-inline" id="invalid" role="alert" hidden></p>
+  <div class="toggles">
+    <fieldset>
+      <legend>How to read it</legend>
+      <button type="button" class="opt" data-group="mode" data-value="excerpt" aria-pressed="true"><b>Excerpt (recommended)</b><span>Ranks the files, reads up to 120,000 characters in one call</span></button>
+      <button type="button" class="opt" data-group="mode" data-value="agentic" aria-pressed="false"><b>Agentic</b><span>Lets the model explore with read-only tools, several turns</span></button>
+    </fieldset>
+    <fieldset>
+      <legend>Model</legend>
+      <button type="button" class="opt" data-group="model" data-value="haiku" aria-pressed="true"><b>Haiku 5.5 (default)</b><span>About $0.01 per small repo; quality matched Sonnet in tests</span></button>
+      <button type="button" class="opt" data-group="model" data-value="sonnet" aria-pressed="false"><b>Sonnet 5.5</b><span>About 10 times the cost; for large or tricky repos</span></button>
+    </fieldset>
+  </div>
+  <label class="check"><input type="checkbox" id="enrich" checked>Then rate novelty and interfaces, add acceptance checks, and score fit to your projects (Tier 2, about $0.0002 per part)</label>
+  <div class="est">
+    <div class="t" aria-live="polite"><strong id="est-head">Add a repo to see the estimate</strong><span class="sub" id="est-sub">Haiku excerpt mode costs about $0.01-0.03 for a small repo.</span></div>
+    <button type="button" class="btn" id="go" disabled>Comprehend</button>
+  </div>
+  <p class="err-inline" id="go-err" role="alert" hidden></p>
+</section>
+
+<section class="card" aria-label="Jobs">
+  <div class="spread">
+    <h2>Jobs</h2>
+    <div role="group" aria-label="Filter jobs" class="row" style="gap:6px" id="tabs">
+      <button type="button" class="tab" data-filter="all" aria-pressed="true">All 0</button>
+      <button type="button" class="tab" data-filter="running" aria-pressed="false">Running 0</button>
+      <button type="button" class="tab" data-filter="done" aria-pressed="false">Done 0</button>
+      <button type="button" class="tab" data-filter="failed" aria-pressed="false">Failed 0</button>
+    </div>
+  </div>
+  <span class="muted">One job runs at a time. Each step's real cost is recorded, and a failure shows its actual cause.</span>
+  <div id="jobs" style="display:flex;flex-direction:column;gap:12px"></div>
+</section>
+
+</div>
+<div class="col">
+
+<section class="card side" aria-label="Your repos">
+  <div class="spread" style="flex-wrap:nowrap;align-items:baseline"><h2>Your repos: capability résumé</h2><span class="muted" id="own-total"></span></div>
+  <div id="own"></div>
+  <code class="chip">/reincarnate:portfolio</code>
+</section>
+
+<section class="card side" aria-label="Registered projects">
+  <h2>Your projects (fit targets)</h2>
+  <span class="muted">Parts are scored against these when they are comprehended.</span>
+  <div id="projects"></div>
+  <form class="form" id="proj-form" style="flex-direction:column">
+    <label class="l" for="projpath" style="font-size:12px">Register a project</label>
+    <input id="projpath" type="text" placeholder="~/code/my-app" autocomplete="off" spellcheck="false">
+    <label class="l" for="projgoal" style="font-size:12px">Goal (optional)</label>
+    <input id="projgoal" type="text" placeholder="what this project is for" autocomplete="off">
+    <div><button type="submit" class="btn dark" id="proj-add">Add project</button></div>
+  </form>
+  <p class="err-inline" id="proj-err" role="alert" hidden></p>
+</section>
+
+<section class="card side" aria-label="Upkeep">
+  <h2>Upkeep</h2>
+  <div id="upkeep"></div>
+</section>
+
+<section class="card side" aria-label="Recently added">
+  <h2>Recently added</h2>
+  <div id="recent"></div>
+</section>
+
+</div>
+</div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- tiny helpers: every API string goes in via text nodes ---------- */
+function h(tag, props) {
+  var el = document.createElement(tag);
+  props = props || {};
+  Object.keys(props).forEach(function (k) {
+    var v = props[k];
+    if (v === null || v === undefined || v === false) return;
+    if (k === 'class') el.className = v;
+    else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, '');
+    else el.setAttribute(k, String(v));
+  });
+  for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+  return el;
+}
+function add(el, kid) {
+  if (kid === null || kid === undefined || kid === false) return;
+  if (Array.isArray(kid)) { kid.forEach(function (k) { add(el, k); }); return; }
+  el.appendChild(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+}
+function clear(el) { el.textContent = ''; }   /* the only way containers are emptied */
+function $(id) { return document.getElementById(id); }
+function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+function num(x) { return typeof x === 'number' && isFinite(x) ? x : 0; }
+function money(x, d) { return '$' + num(x).toFixed(d === undefined ? 2 : d); }
+function minutesText(m) {
+  // the estimate's minutes: {low, high} for the batch (a bare number is accepted too)
+  if (m === null || m === undefined) return '';
+  var lo = typeof m === 'object' ? num(m.low) : num(m), hi = typeof m === 'object' ? num(m.high) : lo;
+  if (!hi) return '';
+  lo = Math.max(1, Math.round(lo)); hi = Math.max(lo, Math.round(hi));
+  return ' · about ' + (lo === hi ? lo : lo + '-' + hi) + ' min';
+}
+function list(x) { return Array.isArray(x) ? x : (x ? [x] : []); }
+function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+function fmtDur(s) {
+  s = Math.max(0, Math.round(num(s)));
+  return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+}
+function fmtWhen(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var d = typeof v === 'number' ? new Date(v < 1e12 ? v * 1000 : v) : new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return typeof v === 'string' && v.length <= 10 ? v : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+function modelLabel(m) {
+  m = String(m || '');
+  if (/haiku/i.test(m)) return 'Haiku 5.5';
+  if (/sonnet/i.test(m)) return 'Sonnet 5.5';
+  return m;
+}
+function mixBar(nov, thin) {
+  nov = nov || {};
+  var d = num(nov.d), p = num(nov.p), c = num(nov.c), n = (d + p + c) || 1;
+  function seg(cls, x) { var i = h('i', { class: cls }); i.style.width = (x / n * 100) + '%'; return i; }
+  return h('span', { class: 'mix' + (thin ? ' thin' : ''), role: 'img', 'aria-label': d + ' distinctive, ' + p + ' pattern, ' + c + ' commodity' },
+    seg('d', d), seg('p', p), seg('c', c));
+}
+function setErr(el, msg) { el.textContent = msg || ''; el.hidden = !msg; }
+function copyText(text, btn) {
+  function done(ok) {
+    var old = btn.dataset.label || btn.textContent;
+    btn.dataset.label = old;
+    btn.textContent = ok ? 'Copied' : 'Select and copy';
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+  } else done(false);
+}
+
+/* ---------- token and mode ---------- */
+var hash = location.hash || '';
+var DEMO = /(^|[#&])demo(&|=|$)/.test(hash);
+var TOKEN = '';
+var m = /(?:^#|&)t=([^&]+)/.exec(hash);
+if (m) { try { TOKEN = decodeURIComponent(m[1]); } catch (e) { TOKEN = m[1]; } }
+if (!TOKEN && !DEMO) { try { TOKEN = window.sessionStorage.getItem('reincarnate.token') || ''; } catch (e) { /* storage may be blocked */ } }
+if (TOKEN && !DEMO) { try { window.sessionStorage.setItem('reincarnate.token', TOKEN); } catch (e) { /* storage may be blocked */ } }
+function studioHref() { return DEMO ? 'studio.html#demo' : '/studio' + (TOKEN ? '#t=' + encodeURIComponent(TOKEN) : ''); }
+if (hash && !DEMO) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file: pages */ } }
+
+/* ---------- demo API (fixture data shaped exactly like the contract) ---------- */
+var demo = (function () {
+  var NAMES = ['queued', 'clone', 'excerpt', 'model pass', 'enrich', 'overlay'];
+  var now = Date.now();
+  var seq = 10;
+  function stages(upTo, state) {
+    return NAMES.map(function (n, i) { return { name: n, state: i < upTo ? 'done' : i === upTo ? state : 'pending' }; });
+  }
+  function job(o) {
+    return Object.assign({ kind: 'comprehend', params: { mode: 'excerpt', model: 'haiku', enrich: true }, state: 'queued', stage: 'queued',
+      stages: stages(0, 'running'), created: now, started: null, finished: null, elapsed_s: 0, cost_usd: 0, error: null, result: null, _t0: null }, o);
+  }
+  var jobs = [
+    job({ id: 'd4', target: 'pallets/itsdangerous', state: 'done', stage: 'overlay', stages: stages(6, 'done'), created: now - 3600e3, started: now - 3590e3, finished: now - 3480e3,
+      elapsed_s: 110, cost_usd: 0.0105, result: { dossier_id: 41, donor: 'pallets/itsdangerous', sha: '672971d6a1b2c3d4e5f60718293a4b5c6d7e8f90', capabilities: 8, nov: { d: 2, p: 3, c: 3 }, reconciled: 0, skipped: 0 } }),
+    job({ id: 'f3', target: 'someone/private-thing', state: 'failed', stage: 'model pass',
+      stages: stages(3, 'failed'), created: now - 7200e3, started: now - 7190e3, finished: now - 7150e3, elapsed_s: 40,
+      error: 'Failed to authenticate: OAuth session expired and could not be refreshed. Run claude auth login, then retry.' }),
+    job({ id: 'r2', target: 'louislam/uptime-kuma', state: 'running', stage: 'excerpt', stages: stages(2, 'running'), started: now - 5000, _t0: now - 5000, cost_usd: 0.004 }),
+    job({ id: 'q1', target: 'jellyfin/jellyfin-web', state: 'queued', params: { mode: 'agentic', model: 'haiku', enrich: false } })
+  ];
+  var projects = [
+    { slug: 'second-brain', path: '/Users/me/second-brain', goal: 'local-first second brain: capture, search, agents, forge', test_cmd: '', stack: ['python'] },
+    { slug: 'family-hub', path: '/Users/me/family-hub', goal: 'family hub dashboard with chores, finance, calendar', test_cmd: 'pytest', stack: ['python'] },
+    { slug: 'burrow', path: '/Users/me/burrow', goal: 'homelab console: service health, dashboards, docker', test_cmd: 'go test ./...', stack: ['go'] }
+  ];
+  var stopAfter = {};
+  function worker() {
+    var run = jobs.filter(function (j) { return j.state === 'running'; })[0];
+    if (!run) {
+      var nxt = jobs.slice().reverse().filter(function (j) { return j.state === 'queued'; })[0];
+      if (nxt) { nxt.state = 'running'; nxt.started = Date.now(); nxt._t0 = nxt.started; nxt.stages = stages(1, 'running'); nxt.stage = 'clone'; }
+      return;
+    }
+    var i = run.stages.findIndex(function (s) { return s.state === 'running'; });
+    run.stages[i].state = 'done'; run.cost_usd += 0.002;
+    if (stopAfter[run.id]) {
+      run.stages.forEach(function (s) { if (s.state === 'pending') s.state = 'skipped'; });
+      run.state = 'cancelled'; run.finished = Date.now(); run._t0 = null; run.error = 'stopped after the ' + run.stages[i].name + ' stage'; return;
+    }
+    var last = run.params.enrich ? 5 : 3;
+    if (i >= last) {
+      run.stages.forEach(function (s) { if (s.state === 'pending') s.state = 'skipped'; });
+      run.state = 'done'; run.finished = Date.now(); run.elapsed_s = (run.finished - run._t0) / 1000; run._t0 = null; run.stage = run.stages[i].name;
+      run.result = { dossier_id: 50 + seq, donor: run.target, sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', capabilities: 6, nov: { d: 1, p: 3, c: 2 }, reconciled: 0, skipped: 0 };
+    } else { run.stages[i + 1].state = 'running'; run.stage = run.stages[i + 1].name; }
+  }
+  setInterval(worker, 3000);
+  function out(j) {
+    var c = JSON.parse(JSON.stringify(j)); delete c._t0;
+    if (j._t0) c.elapsed_s = (Date.now() - j._t0) / 1000;
+    return c;
+  }
+  function norm(raw) {
+    var ok = [], bad = [];
+    (raw || []).forEach(function (r) {
+      var s = String(r).trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
+      if (/^[\w.-]+\/[\w.-]+$/.test(s)) { if (ok.indexOf(s) < 0) ok.push(s); } else bad.push(String(r));
+    });
+    return { ok: ok, bad: bad };
+  }
+  function est(b) {
+    var n = norm(b.repos), k = (b.model === 'sonnet' ? 10 : 1) * (b.mode === 'agentic' ? 1.6 : 1);
+    var lo = n.ok.length * 0.01 * k, hi = n.ok.length * 0.03 * k + (b.enrich ? n.ok.length * 8 * 0.0002 : 0);
+    return { repos: n.ok, invalid: n.bad, low: lo, high: hi, per_repo: n.ok.length ? hi / n.ok.length : 0, minutes: {low: n.ok.length * (b.mode === 'agentic' ? 2 : 1), high: n.ok.length * (b.mode === 'agentic' ? 5 : 3)},
+      basis: 'Demo constants, not measured runs: excerpt Haiku about $0.01-0.03 per small repo.' };
+  }
+  return function (method, path, body) {
+    return new Promise(function (resolve, reject) {
+      setTimeout(function () {
+        var mm;
+        if (path === '/api/state') return resolve({
+          summary: { caps: 351, donors: 36, nov: { d: 67, p: 161, c: 123, u: 0 }, deep: 9, spend: 28.56, pinned: 1, dossiers: 37, license_review: 10 },
+          auth: { logged_in: true, method: 'oauth', email: 'you@example.com' },
+          profile: { name: 'default', stack: ['python', 'fastapi', 'typescript', 'react', 'sqlite'], deny: ['AGPL-3.0'], warn: [] },
+          projects: projects,
+          own: [{ donor: 'dhouchin/second-brain', n: 120, license: 'MIT', summary: 'Capture, search and agent plumbing for a local-first notes system.', nov: { d: 30, p: 60, c: 30 } },
+                { donor: 'dhouchin/burrow', n: 44, license: 'MIT', summary: 'Homelab console: health checks, dashboards, docker control.', nov: { d: 8, p: 20, c: 16 } }],
+          upkeep: [
+            { key: 'sha', title: '36 repos read at an unknown commit', why: 'Imported from your vault without a commit, so a re-read cannot tell what changed.', items: ['louislam/uptime-kuma', 'usememos/memos'], cmd: 'reincarnate comprehend <owner/repo> --force' },
+            { key: 'deep', title: '342 parts not read in code', why: 'Fine for browsing. Deepen a part before you build from it, about $0.011 each.', items: ['Deepened so far: the 9 parts of Homarr Forge'], cmd: 'reincarnate deepen --composition <slug>' },
+            { key: 'lic', title: '10 repos need a license review', why: 'Copyleft, proprietary, source-available or unknown.', items: ['example/agpl-thing · AGPL-3.0 · 12 parts'], cmd: 'reincarnate profile set --deny-license <license>' },
+            { key: 'imp', title: '1 vault note failed to import', why: 'Its dossier has invalid JSON (a bad escape).', items: ['awesome-selfhosted/awesome-selfhosted'], cmd: 'reincarnate comprehend awesome-selfhosted/awesome-selfhosted' }],
+          recent: [{ donor: 'pallets/itsdangerous', at: '2026-10-22', source: 'claude-p', n: 8 }, { donor: 'encode/httpx', at: '2026-10-21', source: 'vault-import', n: 14 }]
+        });
+        if (path === '/api/jobs' && method === 'GET') return resolve({ jobs: jobs.slice().reverse().map(out) });
+        if (path === '/api/estimate') return resolve(est(body));
+        if (path === '/api/jobs' && method === 'POST') {
+          var n = norm(body.repos), made = n.ok.map(function (r) {
+            var j = job({ id: 'n' + (seq++), target: r, created: Date.now(), params: { mode: body.mode, model: body.model, enrich: !!body.enrich } }); jobs.push(j); return out(j);
+          });
+          return resolve({ jobs: made, invalid: n.bad });
+        }
+        if ((mm = /^\/api\/jobs\/([^/]+)\/(cancel|retry)$/.exec(path))) {
+          var j = jobs.filter(function (x) { return x.id === mm[1]; })[0];
+          if (!j) return reject(new Error('no such job'));
+          if (mm[2] === 'cancel') {
+            if (j.state === 'queued') { j.state = 'cancelled'; j.finished = Date.now(); } else if (j.state === 'running') stopAfter[j.id] = true;
+            return resolve({ job: out(j) });
+          }
+          var c = job({ id: 'n' + (seq++), target: j.target, params: j.params, created: Date.now() }); jobs.push(c); return resolve({ job: out(c) });
+        }
+        if (path === '/api/projects') {
+          if (!body.path || body.path.charAt(0) !== '/' && body.path.charAt(0) !== '~') return reject(new Error('path is not an existing directory: ' + (body.path || '')));
+          var slug = body.slug || body.path.replace(/\/$/, '').split('/').pop();
+          var p = { slug: slug, path: body.path, goal: body.goal || '', test_cmd: '', stack: [] }; projects.push(p); return resolve({ project: p });
+        }
+        reject(new Error('not found'));
+      }, 120);
+    });
+  };
+})();
+
+/* ---------- real API ---------- */
+function api(method, path, body) {
+  if (DEMO) return demo(method, path, body);
+  var opts = { method: method, headers: { 'X-Reincarnate-Token': TOKEN }, cache: 'no-store' };
+  if (method === 'POST') { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body || {}); }
+  return fetch(path, opts).then(function (r) {
+    return r.text().then(function (t) {
+      var data = null;
+      try { data = t ? JSON.parse(t) : {}; } catch (e) { data = null; }
+      if (r.status === 403 && !S.staleToken) { S.staleToken = true; renderNotices(); }
+      if (!r.ok || (data && data.error)) throw new Error((data && data.error) || ('Request failed (' + r.status + ')'));
+      if (S.staleToken) { S.staleToken = false; renderNotices(); }
+      if (data === null) throw new Error('The server sent something that is not JSON');
+      return data;
+    });
+  }, function () { throw new Error('Cannot reach the server. Is `reincarnate serve` still running?'); });
+}
+
+window.addEventListener('hashchange', function () {
+  var mm = /(?:^#|&)t=([^&]+)/.exec(location.hash || '');
+  if (!mm || DEMO) return;
+  try { TOKEN = decodeURIComponent(mm[1]); } catch (e) { TOKEN = mm[1]; }
+  try { window.sessionStorage.setItem('reincarnate.token', TOKEN); } catch (e) { /* storage may be blocked */ }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file: pages */ }
+  $('nav-studio').setAttribute('href', studioHref());
+  S.noToken = false; S.staleToken = false; renderNotices();
+  if (typeof loadState === 'function') loadState();
+  if (typeof pollJobs === 'function') pollJobs(true);
+});
+
+/* ---------- state ---------- */
+var S = { mode: 'excerpt', model: 'haiku', jobs: [], filter: 'all', open: {}, jobErr: {}, busy: {}, est: null, estSeq: 0, estPending: false, sig: '', pollTimer: null, prevState: {}, noToken: !DEMO && !TOKEN };
+
+/* ---------- notices ---------- */
+function renderNotices(auth) {
+  var box = $('notices'); clear(box);
+  if (DEMO) box.appendChild(h('div', { class: 'banner info', role: 'status' }, 'Demo mode: fixture data, no server involved. Running and queued jobs advance on a timer.'));
+  if (S.staleToken && !S.noToken) box.appendChild(h('div', { class: 'banner err', role: 'alert' }, 'The server no longer accepts this page\'s token; it has probably restarted. Open the new link ', h('code', null, 'reincarnate serve'), ' printed.'));
+  if (S.noToken) box.appendChild(h('div', { class: 'banner err', role: 'alert' }, 'No access token. Open the link ', h('code', null, 'reincarnate serve'), ' printed (it ends in ', h('code', null, '#t=...'), ').'));
+  if (auth && auth.logged_in === false) {
+    box.appendChild(h('div', { class: 'banner warn', role: 'alert' }, h('strong', null, 'Headless claude is not logged in. '),
+      'Jobs will fail until you sign in. ', auth.error ? h('span', null, auth.error + ' ') : null, 'Run ', h('code', { class: 'mono' }, 'claude auth login'), ' in a terminal.'));
+  }
+}
+
+/* ---------- state panel ---------- */
+function renderState(d) {
+  var sm = d.summary || {}, nov = sm.nov || {}, own = list(d.own);
+  var lic = Array.isArray(sm.license_review) ? sm.license_review.length : num(sm.license_review);
+  var caps = num(sm.caps), deep = num(sm.deep), dossiers = num(sm.dossiers), pinned = num(sm.pinned);
+  var tiles = [
+    ['Parts', String(caps), 'from ' + plural(num(sm.donors), 'repo') + (own.length ? ', ' + own.length + ' of them yours' : '')],
+    ['Novelty', num(nov.d) + ' distinctive', num(nov.p) + ' pattern · ' + num(nov.c) + ' commodity' + (num(nov.u) ? ' · ' + num(nov.u) + ' unrated' : '')],
+    ['Read in code', String(deep), Math.max(0, caps - deep) + ' parts from catalog text only'],
+    ['Recorded spend', money(sm.spend), plural(dossiers, 'comprehension') + ' on record'],
+    ['Pinned to a commit', pinned + ' of ' + dossiers, Math.max(0, dossiers - pinned) + ' have an unknown commit'],
+    ['License reviews', plural(lic, 'repo'), lic ? 'Copyleft, proprietary, source-available or unknown' : 'Nothing to review']
+  ];
+  var t = $('tiles'); clear(t);
+  tiles.forEach(function (x) { t.appendChild(h('div', { class: 'tile' }, h('span', { class: 'k' }, x[0]), h('span', { class: 'v' }, x[1]), h('span', { class: 's' }, x[2]))); });
+
+  var a = d.auth || {};
+  var pill = $('auth-pill');
+  if (a.logged_in !== true && a.logged_in !== false) {  // the server is still checking
+    pill.className = 'pill'; $('auth-text').textContent = 'Headless claude: checking login...';
+    setTimeout(function () { if (typeof loadState === 'function') loadState(); }, 3000);
+    return;
+  }
+  pill.className = 'pill ' + (a.logged_in ? 'ok' : 'bad');
+  $('auth-text').textContent = a.logged_in ? 'Headless claude: logged in' + (a.email ? ' (' + a.email + ')' : '') : 'Headless claude: not logged in';
+  renderNotices(a);
+
+  var pr = d.profile || {}, stack = list(pr.stack), deny = list(pr.deny);
+  $('profile-pill').textContent = 'Profile: ' + (stack.length ? stack.join(', ') : (pr.name || 'none')) + (deny.length ? ' · deny ' + deny.join(', ') : '');
+
+  var ob = $('own'); clear(ob);
+  if (!own.length) ob.appendChild(h('span', { class: 'muted' }, 'No repos of yours in the catalog yet.'));
+  own.forEach(function (o) {
+    ob.appendChild(h('div', { class: 'item' },
+      h('div', { class: 'r' }, h('span', { style: 'font-weight:600;font-size:13px' }, o.donor), h('span', { class: 'muted', style: 'text-align:right' }, num(o.n) + ' parts · ' + (o.license || 'unknown'))),
+      mixBar(o.nov, true), h('span', { class: 'sm' }, o.summary || '')));
+  });
+  $('own-total').textContent = own.reduce(function (s, o) { return s + num(o.n); }, 0) + ' parts · ' + own.reduce(function (s, o) { return s + num((o.nov || {}).d); }, 0) + ' distinctive';
+
+  var pb = $('projects'); clear(pb);
+  if (!list(d.projects).length) pb.appendChild(h('span', { class: 'muted' }, 'No projects registered yet.'));
+  list(d.projects).forEach(function (p) {
+    pb.appendChild(h('div', { class: 'item' },
+      h('div', { class: 'r' }, h('span', { style: 'font-weight:600;font-size:13px' }, p.slug), h('code', { style: 'font-size:11px;color:#3F3F46;text-align:right' }, p.test_cmd || '(none)')),
+      h('span', { class: 'sm' }, p.goal || 'No goal set'),
+      h('span', { class: 'muted', style: 'font-size:11px' }, list(p.stack).length ? list(p.stack).join(', ') : 'stack not detected')));
+  });
+
+  renderUpkeep(list(d.upkeep));
+
+  var rb = $('recent'); clear(rb);
+  if (!list(d.recent).length) rb.appendChild(h('span', { class: 'muted' }, 'Nothing yet.'));
+  list(d.recent).forEach(function (r) {
+    var src = { 'vault-import': 'vault import', 'claude-p': 'comprehended here' }[r.source] || r.source || '';
+    rb.appendChild(h('div', { class: 'item', style: 'flex-direction:row;justify-content:space-between;gap:8px;padding:6px 0' },
+      h('span', { style: 'font-size:13px;overflow-wrap:anywhere' }, r.donor), h('span', { class: 'muted', style: 'text-align:right' }, [fmtWhen(r.at), src, num(r.n) + ' parts'].filter(Boolean).join(' · '))));
+  });
+}
+var lastUpkeep = [];
+function renderUpkeep(items) {
+  lastUpkeep = items;
+  var box = $('upkeep'); clear(box);
+  if (!items.length) box.appendChild(h('span', { class: 'muted' }, 'Nothing needs attention.'));
+  items.forEach(function (u, idx) {
+    var key = u.key || ('u' + idx), open = !!S.open[key], pid = 'upk-' + idx;
+    var btn = h('button', { type: 'button', class: 'small mini', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': pid,
+      onclick: function () { S.open[key] = !S.open[key]; renderUpkeep(lastUpkeep); var again = $('upkeep').querySelectorAll('button[aria-controls]')[idx]; if (again) again.focus(); } }, open ? 'Hide' : 'Show');
+    var panel = null;
+    if (open) {
+      var copy = h('button', { type: 'button', class: 'small mini', onclick: function (e) { copyText(u.cmd || '', e.currentTarget); } }, 'Copy command');
+      panel = h('div', { class: 'open', id: pid }, list(u.items).map(function (t) { return h('span', { style: 'font-size:12px;overflow-wrap:anywhere' }, t); }),
+        u.cmd ? h('div', { class: 'cmdrow' }, h('code', null, u.cmd), copy) : null);
+    }
+    box.appendChild(h('div', { class: 'item', style: 'padding:10px 0' },
+      h('div', { class: 'r' }, h('span', { style: 'display:flex;flex-direction:column;gap:2px' }, h('span', { style: 'font-weight:600;font-size:13px' }, u.title), h('span', { class: 'sm' }, u.why || '')), btn), panel));
+  });
+}
+
+function loadState() {
+  if (S.noToken) { renderNotices(null); return Promise.resolve(); }
+  return api('GET', '/api/state').then(renderState, function (e) { renderNotices(null); $('notices').appendChild(h('div', { class: 'banner err', role: 'alert' }, 'Could not load the catalog: ' + e.message)); });
+}
+
+/* ---------- jobs ---------- */
+function isLive(j) { return j.state === 'queued' || j.state === 'running'; }
+function jobVisible(j) { var f = S.filter; return f === 'all' || (f === 'running' ? isLive(j) : j.state === f); }
+function jobAction(id, verb) {
+  S.busy[id] = true; delete S.jobErr[id]; S.sig = ''; renderJobs();
+  api('POST', '/api/jobs/' + encodeURIComponent(id) + verb, {}).then(function () {
+    delete S.busy[id]; return pollJobs(true);
+  }, function (e) { delete S.busy[id]; S.jobErr[id] = e.message; S.sig = ''; renderJobs(); });
+}
+function jobCard(j) {
+  var p = j.params || {}, st = j.state, failed = st === 'failed';
+  var title = j.target || (cap(j.kind) + ' ' + j.id);
+  var metaBits = [cap(j.kind || 'job')];
+  if (p.mode) metaBits.push(p.mode);
+  if (p.model) metaBits.push(modelLabel(p.model));
+  if (p.enrich === false) metaBits.push('no Tier 2');
+  if (j.created) metaBits.push(fmtWhen(j.created));
+  var statusText = { done: 'Done · ' + money(j.cost_usd, 4), failed: 'Failed', running: 'Running: ' + (j.stage || ''), queued: 'Queued', cancelled: 'Cancelled' }[st] || st;
+  var status = h('span', { class: 'st ' + st }, statusText);
+  var elapsed = null;
+  if (st === 'running') {
+    elapsed = h('span', { class: 'muted', 'data-base': String(Date.now() - num(j.elapsed_s) * 1000) }, fmtDur(j.elapsed_s));
+  }
+  var stages = list(j.stages).map(function (s) { return h('span', { class: 'stage ' + s.state, title: s.state }, cap(s.name)); });
+  var detail = '';
+  var r = j.result;
+  if (st === 'done' && r) {
+    detail = plural(num(r.capabilities), 'part') + ' from ' + (r.donor || j.target) + (r.sha ? '. Commit ' + String(r.sha).slice(0, 8) : '') + '.' +
+      (num(r.reconciled) ? ' ' + num(r.reconciled) + ' reconciled.' : '') + (num(r.skipped) ? ' ' + num(r.skipped) + ' skipped.' : '');
+    if (j.elapsed_s) detail += ' Took ' + fmtDur(j.elapsed_s) + '.';
+  } else if (st === 'queued') detail = 'Waiting for the worker.';
+  else if (st === 'running') detail = 'Cost so far ' + money(j.cost_usd, 4) + '.';
+  else if (st === 'cancelled') detail = j.error || 'Cancelled before it finished.';
+
+  var actions = [];
+  var busy = !!S.busy[j.id];
+  if (st === 'queued') actions.push(h('button', { type: 'button', class: 'small', disabled: busy, onclick: function () { jobAction(j.id, '/cancel'); } }, 'Cancel'));
+  if (st === 'running') actions.push(h('button', { type: 'button', class: 'small', disabled: busy, onclick: function () { jobAction(j.id, '/cancel'); } }, 'Stop after this stage'));
+  if (failed || st === 'cancelled') actions.push(h('button', { type: 'button', class: 'small' + (failed ? ' danger' : ''), disabled: busy, onclick: function () { jobAction(j.id, '/retry'); } }, 'Retry'));
+  var needsLogin = failed && /log.?in|oauth|authenticat/i.test(j.error || '');
+  return h('article', { class: 'job ' + st, 'aria-label': title },
+    h('div', { class: 'top' }, h('div', { style: 'display:flex;flex-direction:column;gap:2px;min-width:0' }, h('span', { class: 'name' }, title), h('span', { class: 'muted' }, metaBits.join(' · '))),
+      h('span', { class: 'row', style: 'gap:8px' }, elapsed, status)),
+    stages.length ? h('div', { class: 'row', style: 'gap:6px' }, stages) : null,
+    detail ? h('span', { class: 'detail' }, detail) : null,
+    st === 'done' && r && r.nov ? h('div', { style: 'display:flex;flex-direction:column;gap:2px' }, mixBar(r.nov),
+      h('span', { class: 'muted' }, num(r.nov.d) + ' distinctive · ' + num(r.nov.p) + ' pattern · ' + num(r.nov.c) + ' commodity')) : null,
+    failed ? h('div', { class: 'cause', role: 'note' }, j.error || 'Failed with no recorded cause.') : null,
+    (needsLogin || actions.length) ? h('div', { class: 'cmdrow' }, needsLogin ? h('code', { class: 'chip' }, 'claude auth login') : null, actions) : null,
+    S.jobErr[j.id] ? h('p', { class: 'err-inline', role: 'alert' }, S.jobErr[j.id]) : null);
+}
+function renderJobs() {
+  var vis = S.jobs.filter(jobVisible);
+  var sig = S.filter + '|' + JSON.stringify(vis.map(function (j) { var c = Object.assign({}, j); delete c.elapsed_s; return c; })) + JSON.stringify(S.jobErr) + JSON.stringify(S.busy) + '|' + S.jobs.length;
+  var counts = { all: S.jobs.length, running: S.jobs.filter(isLive).length, done: 0, failed: 0 };
+  S.jobs.forEach(function (j) { if (j.state === 'done') counts.done++; if (j.state === 'failed') counts.failed++; });
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function (b) {
+    var f = b.dataset.filter; b.textContent = cap(f) + ' ' + counts[f]; b.setAttribute('aria-pressed', S.filter === f ? 'true' : 'false');
+  });
+  if (sig === S.sig) return;
+  S.sig = sig;
+  var box = $('jobs'); clear(box);
+  if (!vis.length) box.appendChild(h('span', { class: 'muted' }, S.jobs.length ? 'No jobs match this filter.' : 'No jobs yet. Add a repo above.'));
+  vis.forEach(function (j) { box.appendChild(jobCard(j)); });
+}
+function pollJobs(force) {
+  if (S.noToken) return Promise.resolve();
+  return api('GET', '/api/jobs').then(function (d) {
+    var jobs = list(d.jobs), finished = false;
+    jobs.forEach(function (j) { if (S.prevState[j.id] && isLive({ state: S.prevState[j.id] }) && !isLive(j)) finished = true; S.prevState[j.id] = j.state; });
+    S.jobs = jobs; renderJobs();
+    if (finished) loadState();
+  }, function (e) { /* keep the last view; the next poll retries */ });
+}
+function schedulePoll() {
+  clearTimeout(S.pollTimer);
+  S.pollTimer = setTimeout(function () { pollJobs().then(schedulePoll); }, S.jobs.some(isLive) ? 2000 : 15000);
+}
+setInterval(function () {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-base]'), function (el) { el.textContent = fmtDur((Date.now() - Number(el.dataset.base)) / 1000); });
+}, 1000);
+
+/* ---------- add repos + estimate ---------- */
+function repoLines() { return $('repos').value.split(/[\n,]+/).map(function (x) { return x.trim(); }).filter(Boolean); }
+function body() { return { repos: repoLines(), mode: S.mode, model: S.model, enrich: $('enrich').checked }; }
+var estTimer = null;
+function scheduleEstimate() {
+  clearTimeout(estTimer);
+  setErr($('go-err'), '');
+  S.estError = null;
+  if (S.noToken) return;
+  if (!repoLines().length) { S.est = null; S.estSeq++; S.estPending = false; renderEstimate(); return; }
+  S.estPending = true; renderEstimate();
+  estTimer = setTimeout(runEstimate, 400);
+}
+function runEstimate() {
+  var seq = ++S.estSeq;
+  api('POST', '/api/estimate', body()).then(function (d) {
+    if (seq !== S.estSeq) return;
+    S.est = d; S.estPending = false; S.estError = null; renderEstimate();
+  }, function (e) {
+    if (seq !== S.estSeq) return;
+    S.est = null; S.estPending = false; S.estError = e.message; renderEstimate();
+  });
+}
+function renderEstimate() {
+  var head = $('est-head'), sub = $('est-sub'), go = $('go'), inv = $('invalid');
+  var d = S.est, n = d ? list(d.repos).length : 0;
+  if (d && list(d.invalid).length) setErr(inv, 'Not a GitHub repo, so skipped: ' + d.invalid.join(', ')); else setErr(inv, '');
+  if (S.estPending) { head.textContent = 'Estimating…'; sub.textContent = ''; go.disabled = true; go.textContent = 'Comprehend'; return; }
+  if (S.estError && repoLines().length) { head.textContent = 'Could not estimate'; sub.textContent = S.estError; go.disabled = true; go.textContent = 'Comprehend'; return; }
+  if (!n) {
+    head.textContent = d ? 'No valid repos yet' : 'Add a repo to see the estimate';
+    sub.textContent = d ? 'Use owner/repo or a github.com URL.' : 'Haiku excerpt mode costs about $0.01-0.03 for a small repo.';
+    go.disabled = true; go.textContent = 'Comprehend'; return;
+  }
+  head.textContent = plural(n, 'repo') + ' · about ' + money(d.low) + '-' + money(d.high).slice(1) + minutesText(d.minutes);
+  sub.textContent = (d.basis || '') + (n > 1 ? ' One at a time.' : '');
+  go.disabled = S.noToken; go.textContent = 'Comprehend ' + plural(n, 'repo');
+}
+$('repos').addEventListener('input', scheduleEstimate);
+$('enrich').addEventListener('change', scheduleEstimate);
+Array.prototype.forEach.call(document.querySelectorAll('.opt'), function (b) {
+  b.addEventListener('click', function () {
+    var g = b.dataset.group; S[g] = b.dataset.value;
+    Array.prototype.forEach.call(document.querySelectorAll('.opt[data-group="' + g + '"]'), function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+    scheduleEstimate();
+  });
+});
+Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function (b) {
+  b.addEventListener('click', function () { S.filter = b.dataset.filter; S.sig = ''; renderJobs(); });
+});
+$('go').addEventListener('click', function () {
+  var go = $('go'); go.disabled = true; setErr($('go-err'), '');
+  api('POST', '/api/jobs', body()).then(function (d) {
+    var bad = list(d.invalid);
+    $('repos').value = bad.join('\n');
+    S.est = null; S.estPending = false; S.filter = 'all'; S.sig = '';
+    if (bad.length) scheduleEstimate(); else renderEstimate();
+    return pollJobs().then(schedulePoll);
+  }, function (e) { setErr($('go-err'), e.message); go.disabled = false; });
+});
+
+/* ---------- register a project ---------- */
+$('proj-form').addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  var path = $('projpath').value.trim(), goal = $('projgoal').value.trim();
+  if (!path) { setErr($('proj-err'), 'Enter the path to a project directory.'); return; }
+  var b = $('proj-add'); b.disabled = true; setErr($('proj-err'), '');
+  var payload = { path: path }; if (goal) payload.goal = goal;
+  api('POST', '/api/projects', payload).then(function () {
+    $('projpath').value = ''; $('projgoal').value = ''; b.disabled = false; return loadState();
+  }, function (e) { setErr($('proj-err'), e.message); b.disabled = false; });
+});
+
+/* ---------- boot ---------- */
+$('nav-studio').setAttribute('href', studioHref());
+renderNotices(null);
+renderJobs();
+renderEstimate();
+loadState();
+pollJobs().then(schedulePoll);
+})();
+</script>
+</body>
+</html>
